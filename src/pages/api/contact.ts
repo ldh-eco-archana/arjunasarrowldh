@@ -15,7 +15,7 @@ const isValidEmail = (email: string): boolean => {
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
-) {
+): Promise<void> {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -320,7 +320,7 @@ This is an automated response. Please do not reply to this email.
           autoResponse: autoResponseData 
         } 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error sending auto-response email:', error);
       
       // Even if auto-response fails, return success for the admin email
@@ -328,11 +328,11 @@ This is an automated response. Please do not reply to this email.
         success: true, 
         data: { 
           adminEmail: adminEmailData,
-          autoResponseError: error.message || 'Failed to send auto-response'
+          autoResponseError: error instanceof Error ? error.message : 'Failed to send auto-response'
         } 
       });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error sending email:', error);
     return res.status(500).json({ error: 'Failed to send email' });
   }

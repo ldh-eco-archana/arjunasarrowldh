@@ -8,7 +8,7 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
-) {
+): Promise<void> {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -31,7 +31,7 @@ export default async function handler(
 
     // Send a test email
     const data = await resend.emails.send({
-      from: 'Arjuna\'s Arrow <onboarding@resend.dev>',
+      from: 'Arjuna\'s Arrow <no-reply@arjunasarrow.in>',
       to: email,
       subject: 'Email Verification Test',
       html: `
@@ -52,11 +52,11 @@ export default async function handler(
       data,
       message: 'Test email sent successfully. Please check your inbox (and spam folder).'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error sending test email:', error);
     return res.status(500).json({
       error: 'Failed to send test email',
-      details: error.message
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 } 

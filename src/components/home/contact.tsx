@@ -96,7 +96,7 @@ const HomeContact = (): JSX.Element => {
     }
   }
 
-  const handleCloseSnackbar = () => {
+  const handleCloseSnackbar = (): void => {
     setSubmitStatus((prev) => ({ ...prev, open: false }))
   }
 
