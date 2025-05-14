@@ -1,4 +1,4 @@
-import React, { FC, useState } from 'react'
+import React, { FC, useState, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
 import IconButton from '@mui/material/IconButton'
@@ -10,11 +10,36 @@ import { Menu, Close } from '@mui/icons-material'
 
 const Header: FC = () => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
+  const [isScrolled, setIsScrolled] = useState<boolean>(false)
   const { breakpoints } = useTheme()
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
 
+  useEffect(() => {
+    const handleScroll = (): void => {
+      if (window.scrollY > 10) {
+        setIsScrolled(true)
+      } else {
+        setIsScrolled(false)
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
   return (
-    <Box sx={{ backgroundColor: 'background.paper' }}>
+    <Box 
+      sx={{ 
+        backgroundColor: 'background.paper',
+        position: 'sticky',
+        top: 0,
+        zIndex: 1100,
+        boxShadow: isScrolled ? '0px 2px 4px rgba(0, 0, 0, 0.1)' : 'none',
+        transition: 'box-shadow 0.3s ease'
+      }}
+    >
       <Container sx={{ py: { xs: 2, md: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Logo />

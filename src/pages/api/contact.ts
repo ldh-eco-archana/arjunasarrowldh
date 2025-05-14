@@ -264,7 +264,8 @@ export default async function handler(
       return res.status(200).json({ 
         success: true, 
         data: { id: 'mock-email-id' },
-        mode: 'development' 
+        mode: 'development',
+        isDevelopment: true
       });
     }
 

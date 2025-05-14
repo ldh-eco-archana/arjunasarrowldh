@@ -22,7 +22,7 @@ const HomeContact = (): JSX.Element => {
   const [submitStatus, setSubmitStatus] = useState<{
     open: boolean;
     message: string;
-    severity: 'success' | 'error';
+    severity: 'success' | 'warning' | 'error' | 'info';
   }>({
     open: false,
     message: '',
@@ -58,13 +58,21 @@ const HomeContact = (): JSX.Element => {
       }
       
       let successMessage = 'Your message has been sent successfully!'
+      let severity: 'success' | 'warning' | 'error' | 'info' = 'success'
       
+      // Check if in development mode
+      if (data.isDevelopment) {
+        successMessage = 'Development mode: Your message was processed, but no emails were sent. Set up the Resend API key to enable email functionality.'
+        severity = 'warning'
+        console.warn('Running in development mode without Resend API key. No emails were actually sent.')
+      } 
       // Check if both emails were sent successfully
-      if (data.data?.adminEmail && data.data?.autoResponse) {
+      else if (data.data?.adminEmail && data.data?.autoResponse) {
         successMessage = 'Your message has been sent successfully, and a confirmation email has been sent to your email address!'
       } else if (data.data?.adminEmail && data.data?.autoResponseError) {
         // Only admin email was sent
         successMessage = 'Your message has been received, but we could not send you a confirmation email. Please check your email address.'
+        severity = 'warning'
         console.warn('Auto-response failed:', data.data.autoResponseError)
       }
       
@@ -72,7 +80,7 @@ const HomeContact = (): JSX.Element => {
       setSubmitStatus({
         open: true,
         message: successMessage,
-        severity: 'success',
+        severity,
       })
       
       // Reset form

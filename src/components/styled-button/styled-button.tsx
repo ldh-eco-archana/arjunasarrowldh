@@ -1,6 +1,6 @@
 import React, { FC, ReactNode } from 'react'
 import Box from '@mui/material/Box'
-import { Theme } from '@mui/material'
+import { Theme, SxProps } from '@mui/material'
 import { styled } from '@mui/material/styles'
 import { ButtonProps } from '@mui/material/Button'
 import { fontFamily } from '@/config/theme/typography'
@@ -11,6 +11,7 @@ interface BaseButtonProps extends Pick<ButtonProps, 'onClick' | 'type' | 'startI
   size?: 'small' | 'medium' | 'large'
   disableHoverEffect?: boolean
   disabled?: boolean
+  sx?: SxProps<Theme>
 }
 interface StyledButtonRootProps extends BaseButtonProps {
   theme?: Theme
@@ -161,9 +162,14 @@ interface Props extends BaseButtonProps {
 }
 
 const StyledButton: FC<Props> = (props: Props) => {
-  const { children, onClick, disableHoverEffect, startIcon, endIcon, ...rest } = props
+  const { children, onClick, disableHoverEffect, startIcon, endIcon, sx, ...rest } = props
   return (
-    <StyledButtonRoot onClick={onClick} disableHoverEffect={disableHoverEffect} {...rest}>
+    <StyledButtonRoot 
+      onClick={onClick} 
+      disableHoverEffect={disableHoverEffect} 
+      style={sx ? { ...(sx as SxProps<Theme>) } : {}}
+      {...rest}
+    >
       {startIcon && (
         <Box component="span" sx={{ display: 'inherit', mr: 1, ml: -0.5 }}>
           {startIcon}

@@ -25,7 +25,8 @@ export default async function handler(
       return res.status(200).json({
         success: true,
         mode: 'development',
-        message: 'No API key provided. In development mode, emails are only logged.'
+        isDevelopment: true,
+        message: 'No Resend API key provided. In development mode, emails are only logged and not actually sent.'
       });
     }
 
