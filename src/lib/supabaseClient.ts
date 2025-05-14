@@ -81,6 +81,39 @@ export const resetPassword = async (email: string): Promise<{ error: Error | nul
   })
 }
 
+export const updatePassword = async (currentPassword: string, newPassword: string): Promise<{ 
+  error: Error | null, 
+  success: boolean 
+}> => {
+  try {
+    // First verify the current password by attempting to sign in
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: (await getCurrentUser())?.email || '',
+      password: currentPassword,
+    })
+
+    if (signInError) {
+      return { error: new Error('Current password is incorrect'), success: false }
+    }
+
+    // If sign-in was successful, update the password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
+
+    if (updateError) {
+      return { error: updateError, success: false }
+    }
+
+    return { error: null, success: true }
+  } catch (error) {
+    return { 
+      error: error instanceof Error ? error : new Error('An unknown error occurred'), 
+      success: false 
+    }
+  }
+}
+
 // Admin function to create pre-verified users for testing
 export const createAdminUser = async (userData: {
   email: string;

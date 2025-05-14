@@ -12,6 +12,139 @@ const Navigation: FC = () => {
     router.pathname === '/login' || 
     router.pathname === '/signup' || 
     router.pathname === '/payment';
+  
+  // Check if we're on any authenticated user page (dashboard, profile, change-password)
+  const isAuthenticatedUserPage = 
+    router.pathname === '/dashboard' || 
+    router.pathname === '/profile' || 
+    router.pathname === '/change-password';
+  
+  // If on dashboard, profile, or change password, only show these navigation links
+  if (isAuthenticatedUserPage) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+        <Link href="/dashboard" passHref>
+          <Box
+            component="a"
+            sx={{
+              position: 'relative',
+              color: router.pathname === '/dashboard' ? 'primary.main' : 'text.disabled',
+              cursor: 'pointer',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              px: { xs: 0, md: 3 },
+              mb: { xs: 3, md: 0 },
+              fontSize: { xs: '1.2rem', md: 'inherit' },
+              textDecoration: 'none',
+              '& > div': { display: 'none' },
+              '&:hover': {
+                color: 'primary.main',
+                '&>div': {
+                  display: 'block',
+                },
+              },
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 12,
+                transform: 'rotate(3deg)',
+                '& img': { width: 44, height: 'auto' },
+                display: router.pathname === '/dashboard' ? 'block' : 'none',
+              }}
+            >
+              {/* eslint-disable-next-line */}
+              <img src="/images/headline-curve.svg" alt="Headline curve" />
+            </Box>
+            Dashboard
+          </Box>
+        </Link>
+        
+        <Link href="/profile" passHref>
+          <Box
+            component="a"
+            sx={{
+              position: 'relative',
+              color: router.pathname === '/profile' ? 'primary.main' : 'text.disabled',
+              cursor: 'pointer',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              px: { xs: 0, md: 3 },
+              mb: { xs: 3, md: 0 },
+              fontSize: { xs: '1.2rem', md: 'inherit' },
+              textDecoration: 'none',
+              '& > div': { display: 'none' },
+              '&:hover': {
+                color: 'primary.main',
+                '&>div': {
+                  display: 'block',
+                },
+              },
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 12,
+                transform: 'rotate(3deg)',
+                '& img': { width: 44, height: 'auto' },
+                display: router.pathname === '/profile' ? 'block' : 'none',
+              }}
+            >
+              {/* eslint-disable-next-line */}
+              <img src="/images/headline-curve.svg" alt="Headline curve" />
+            </Box>
+            My Profile
+          </Box>
+        </Link>
+        
+        <Link href="/change-password" passHref>
+          <Box
+            component="a"
+            sx={{
+              position: 'relative',
+              color: router.pathname === '/change-password' ? 'primary.main' : 'text.disabled',
+              cursor: 'pointer',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              px: { xs: 0, md: 3 },
+              mb: { xs: 3, md: 0 },
+              fontSize: { xs: '1.2rem', md: 'inherit' },
+              textDecoration: 'none',
+              '& > div': { display: 'none' },
+              '&:hover': {
+                color: 'primary.main',
+                '&>div': {
+                  display: 'block',
+                },
+              },
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 12,
+                transform: 'rotate(3deg)',
+                '& img': { width: 44, height: 'auto' },
+                display: router.pathname === '/change-password' ? 'block' : 'none',
+              }}
+            >
+              {/* eslint-disable-next-line */}
+              <img src="/images/headline-curve.svg" alt="Headline curve" />
+            </Box>
+            Change Password
+          </Box>
+        </Link>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>

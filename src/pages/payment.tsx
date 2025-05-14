@@ -20,6 +20,8 @@ import Radio from '@mui/material/Radio'
 import InputLabel from '@mui/material/InputLabel'
 import MenuItem from '@mui/material/MenuItem'
 import Select, { SelectChangeEvent } from '@mui/material/Select'
+import { countryCodes } from '@/data/countryCodes'
+import { validatePhoneNumber, getPhoneNumberPlaceholder } from '@/utils/phoneValidation'
 
 const Payment: NextPageWithLayout = () => {
   const [formStep, setFormStep] = useState(0)
@@ -27,6 +29,7 @@ const Payment: NextPageWithLayout = () => {
     firstName: '',
     lastName: '',
     email: '',
+    countryCode: '+91',
     mobile: '',
     password: '',
     confirmPassword: '',
@@ -39,8 +42,23 @@ const Payment: NextPageWithLayout = () => {
   const [errors, setErrors] = useState({
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    mobile: ''
   })
+  
+  // Update placeholder for mobile number based on selected country code
+  const [mobilePlaceholder, setMobilePlaceholder] = useState(getPhoneNumberPlaceholder('+91'))
+  
+  useEffect(() => {
+    // Set the placeholder based on selected country code
+    setMobilePlaceholder(getPhoneNumberPlaceholder(formData.countryCode))
+    
+    // Validate mobile number when country code changes
+    if (formData.mobile) {
+      const { isValid, errorMessage } = validatePhoneNumber(formData.countryCode, formData.mobile)
+      setErrors(prev => ({ ...prev, mobile: isValid ? '' : errorMessage }))
+    }
+  }, [formData.countryCode, formData.mobile])
   
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent): void => {
     const { name, value } = e.target
@@ -48,6 +66,12 @@ const Payment: NextPageWithLayout = () => {
       ...prev,
       [name]: value
     }))
+    
+    // For mobile number field, validate against the country code
+    if (name === 'mobile') {
+      const { isValid, errorMessage } = validatePhoneNumber(formData.countryCode, value)
+      setErrors(prev => ({ ...prev, mobile: isValid ? '' : errorMessage }))
+    }
   }
   
   useEffect(() => {
@@ -82,7 +106,7 @@ const Payment: NextPageWithLayout = () => {
   
   const handleNextStep = (): void => {
     // Check if there are any validation errors
-    if (errors.email || errors.password || errors.confirmPassword) {
+    if (errors.email || errors.password || errors.confirmPassword || errors.mobile) {
       return
     }
     
@@ -100,6 +124,8 @@ const Payment: NextPageWithLayout = () => {
   const handlePayment = (): void => {
     // In a real implementation, this would connect to a payment gateway
     // For demonstration, we'll just redirect to a success page or external payment URL
+    
+    // Redirect to payment gateway
     window.location.href = 'https://example.com/payment' // Replace with actual payment gateway URL
   }
 
@@ -113,13 +139,13 @@ const Payment: NextPageWithLayout = () => {
         />
       </Head>
       <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
-        <Container maxWidth="md">
+        <Container maxWidth="lg">
           <Typography component="h1" variant="h3" align="center" sx={{ mb: 6, fontWeight: 'bold' }}>
             Complete Your Course Subscription
           </Typography>
           
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={7}>
+          <Grid container spacing={4} justifyContent="center">
+            <Grid item xs={12} md={6} lg={5}>
               <Card sx={{ borderRadius: 3, boxShadow: 5, height: '100%' }}>
                 <CardContent sx={{ p: 4 }}>
                   <Typography component="h2" variant="h5" sx={{ mb: 3, fontWeight: 'bold' }}>
@@ -162,9 +188,9 @@ const Payment: NextPageWithLayout = () => {
               </Card>
             </Grid>
             
-            <Grid item xs={12} md={5}>
+            <Grid item xs={12} md={6} lg={6}>
               <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
-                <CardContent sx={{ p: 4 }}>
+                <CardContent sx={{ p: { xs: 3, sm: 4, md: 5 } }}>
                   {formStep === 0 ? (
                     <>
                       <Typography component="h2" variant="h5" sx={{ mb: 4, fontWeight: 'bold' }}>
@@ -172,7 +198,7 @@ const Payment: NextPageWithLayout = () => {
                       </Typography>
                       
                       <Grid container spacing={2}>
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
                             label="First Name"
@@ -183,7 +209,7 @@ const Payment: NextPageWithLayout = () => {
                             required
                           />
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
                             label="Last Name"
@@ -208,7 +234,41 @@ const Payment: NextPageWithLayout = () => {
                             error={!!errors.email}
                           />
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={5} md={4}>
+                          <FormControl fullWidth margin="normal" required>
+                            <InputLabel>Country Code</InputLabel>
+                            <Select
+                              name="countryCode"
+                              value={formData.countryCode}
+                              label="Country Code"
+                              onChange={handleChange}
+                              MenuProps={{ 
+                                PaperProps: { 
+                                  sx: { maxHeight: 300 } 
+                                } 
+                              }}
+                              renderValue={(selected) => {
+                                const selectedCountry = countryCodes.find(option => option.value === selected);
+                                return (
+                                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Typography sx={{ mr: 1 }}>{selectedCountry?.flag}</Typography>
+                                    <Typography>{selectedCountry?.value}</Typography>
+                                  </Box>
+                                );
+                              }}
+                            >
+                              {countryCodes.map(option => (
+                                <MenuItem key={option.value} value={option.value}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Typography sx={{ mr: 1, fontSize: '1.2rem' }}>{option.flag}</Typography>
+                                    <Typography>{option.label}</Typography>
+                                  </Box>
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                        <Grid item xs={12} sm={7} md={8}>
                           <TextField
                             fullWidth
                             label="Mobile Number"
@@ -217,9 +277,17 @@ const Payment: NextPageWithLayout = () => {
                             onChange={handleChange}
                             margin="normal"
                             required
+                            type="tel"
+                            placeholder={mobilePlaceholder}
+                            error={!!errors.mobile}
+                            helperText={errors.mobile || mobilePlaceholder}
+                            inputProps={{
+                              inputMode: 'numeric',
+                              pattern: '[0-9]*'
+                            }}
                           />
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
                             label="Password"
@@ -233,7 +301,7 @@ const Payment: NextPageWithLayout = () => {
                             error={!!errors.password}
                           />
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
                             label="Confirm Password"
@@ -247,7 +315,7 @@ const Payment: NextPageWithLayout = () => {
                             error={!!errors.confirmPassword}
                           />
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
                             label="School Name"
@@ -258,7 +326,7 @@ const Payment: NextPageWithLayout = () => {
                             required
                           />
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
                             label="City"
@@ -269,7 +337,7 @@ const Payment: NextPageWithLayout = () => {
                             required
                           />
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6}>
                           <FormControl fullWidth margin="normal" required>
                             <InputLabel>Class</InputLabel>
                             <Select
@@ -284,7 +352,7 @@ const Payment: NextPageWithLayout = () => {
                             </Select>
                           </FormControl>
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid item xs={12} sm={6}>
                           <FormControl component="fieldset" margin="normal" required>
                             <Typography variant="body2" sx={{ mb: 1 }}>Board</Typography>
                             <RadioGroup

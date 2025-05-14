@@ -21,6 +21,8 @@ import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import LockIcon from '@mui/icons-material/Lock'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import { countryCodes } from '@/data/countryCodes'
+import { validatePhoneNumber, getPhoneNumberPlaceholder } from '@/utils/phoneValidation'
 
 // Define shared type
 interface UserData {
@@ -29,6 +31,7 @@ interface UserData {
   email: string
   password: string
   confirmPassword: string
+  countryCode: string
   mobile: string
   schoolName: string
   city: string
@@ -71,6 +74,7 @@ const AdminCreateUser: NextPageWithLayout = () => {
     firstName: '',
     lastName: '',
     email: '',
+    countryCode: '+91',
     mobile: '',
     password: '',
     confirmPassword: '',
@@ -83,7 +87,8 @@ const AdminCreateUser: NextPageWithLayout = () => {
   const [errors, setErrors] = useState({
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    mobile: ''
   })
 
   const [submitStatus, setSubmitStatus] = useState<{
@@ -95,6 +100,20 @@ const AdminCreateUser: NextPageWithLayout = () => {
     message: '',
     severity: 'info',
   })
+  
+  // Update placeholder for mobile number based on selected country code
+  const [mobilePlaceholder, setMobilePlaceholder] = useState(getPhoneNumberPlaceholder('+91'))
+  
+  useEffect(() => {
+    // Set the placeholder based on selected country code
+    setMobilePlaceholder(getPhoneNumberPlaceholder(formData.countryCode))
+    
+    // Validate mobile number when country code changes
+    if (formData.mobile) {
+      const { isValid, errorMessage } = validatePhoneNumber(formData.countryCode, formData.mobile)
+      setErrors(prev => ({ ...prev, mobile: isValid ? '' : errorMessage }))
+    }
+  }, [formData.countryCode, formData.mobile])
   
   const handlePasswordSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -128,6 +147,12 @@ const AdminCreateUser: NextPageWithLayout = () => {
       ...prev,
       [name]: value
     }))
+    
+    // For mobile number field, validate against the country code
+    if (name === 'mobile') {
+      const { isValid, errorMessage } = validatePhoneNumber(formData.countryCode, value)
+      setErrors(prev => ({ ...prev, mobile: isValid ? '' : errorMessage }))
+    }
   }
   
   useEffect(() => {
@@ -172,6 +197,14 @@ const AdminCreateUser: NextPageWithLayout = () => {
       setLoading(false)
       return
     }
+    
+    // Phone number validation
+    const { isValid, errorMessage } = validatePhoneNumber(formData.countryCode, formData.mobile)
+    if (!isValid) {
+      setError(`Invalid phone number: ${errorMessage}`)
+      setLoading(false)
+      return
+    }
 
     if (!isDevMode) {
       setError('Admin operations are restricted to development mode only')
@@ -187,7 +220,11 @@ const AdminCreateUser: NextPageWithLayout = () => {
         },
         body: JSON.stringify({
           adminPassword,
-          userData: formData
+          userData: {
+            ...formData,
+            // Combine country code and mobile
+            mobile: `${formData.countryCode}${formData.mobile}`
+          }
         }),
       })
 
@@ -205,6 +242,7 @@ const AdminCreateUser: NextPageWithLayout = () => {
         firstName: '',
         lastName: '',
         email: '',
+        countryCode: '+91',
         mobile: '',
         password: '',
         confirmPassword: '',
@@ -224,24 +262,14 @@ const AdminCreateUser: NextPageWithLayout = () => {
 
   // Board options
   const boardOptions = [
-    { value: '', label: 'Select Board' },
-    { value: 'cbse', label: 'CBSE' },
-    { value: 'icse', label: 'ICSE' },
-    { value: 'state', label: 'State Board' },
-    { value: 'igcse', label: 'IGCSE' },
-    { value: 'ib', label: 'IB' },
-    { value: 'other', label: 'Other' }
+    { value: 'CBSE', label: 'CBSE' },
+    { value: 'ICSE', label: 'ICSE' }
   ]
   
   // Class options
   const classOptions = [
-    { value: '', label: 'Select Class' },
-    { value: '8', label: '8th' },
-    { value: '9', label: '9th' },
-    { value: '10', label: '10th' },
     { value: '11', label: '11th' },
-    { value: '12', label: '12th' },
-    { value: 'other', label: 'Other' }
+    { value: '12', label: '12th' }
   ]
 
   return (
@@ -387,7 +415,36 @@ const AdminCreateUser: NextPageWithLayout = () => {
                           error={!!errors.email}
                         />
                       </Grid>
-                      <Grid item xs={12}>
+                      <Grid item xs={12} sm={4}>
+                        <FormControl fullWidth margin="normal" required>
+                          <InputLabel>Country Code</InputLabel>
+                          <Select
+                            name="countryCode"
+                            value={formData.countryCode}
+                            label="Country Code"
+                            onChange={handleChange}
+                            renderValue={(selected) => {
+                              const selectedCountry = countryCodes.find(option => option.value === selected);
+                              return (
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                  <Typography sx={{ mr: 1 }}>{selectedCountry?.flag}</Typography>
+                                  <Typography>{selectedCountry?.label}</Typography>
+                                </Box>
+                              );
+                            }}
+                          >
+                            {countryCodes.map(option => (
+                              <MenuItem key={option.value} value={option.value}>
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                  <Typography sx={{ mr: 1, fontSize: '1.2rem' }}>{option.flag}</Typography>
+                                  <Typography>{option.label}</Typography>
+                                </Box>
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} sm={8}>
                         <TextField
                           fullWidth
                           label="Mobile Number"
@@ -396,6 +453,14 @@ const AdminCreateUser: NextPageWithLayout = () => {
                           onChange={handleChange}
                           margin="normal"
                           required
+                          type="tel"
+                          placeholder={mobilePlaceholder}
+                          error={!!errors.mobile}
+                          helperText={errors.mobile || mobilePlaceholder}
+                          inputProps={{
+                            inputMode: 'numeric',
+                            pattern: '[0-9]*'
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12} sm={6}>
