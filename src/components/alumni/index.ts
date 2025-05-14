@@ -1,0 +1,1 @@
+export { default as AlumniCardItem } from './alumni-card-item' 
