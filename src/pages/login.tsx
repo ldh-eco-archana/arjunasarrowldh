@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
 import Head from 'next/head'
@@ -11,8 +11,51 @@ import Grid from '@mui/material/Grid'
 import Link from 'next/link'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
+import Alert from '@mui/material/Alert'
+import { useRouter } from 'next/router'
+import { signIn } from '@/lib/supabaseClient'
+import InputAdornment from '@mui/material/InputAdornment'
+import EmailIcon from '@mui/icons-material/Email'
+import LockIcon from '@mui/icons-material/Lock'
+import Image from 'next/image'
+import Divider from '@mui/material/Divider'
+import CircularProgress from '@mui/material/CircularProgress'
 
 const Login: NextPageWithLayout = () => {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      const { data, error } = await signIn(email, password)
+
+      if (error) {
+        throw error
+      }
+
+      if (data?.user) {
+        setSuccess(true)
+        // Redirect to dashboard after successful login
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 1500)
+      }
+    } catch (error: unknown) {
+      const err = error as Error
+      setError(err.message || 'Invalid credentials')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <>
       <Head>
@@ -22,61 +65,165 @@ const Login: NextPageWithLayout = () => {
           content="Login to access your economics e-learning account. Comprehensive digital learning platform for economics students."
         />
       </Head>
-      <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
-        <Container maxWidth="sm">
-          <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
-            <CardContent sx={{ p: 4 }}>
-              <Typography component="h1" variant="h4" align="center" sx={{ mb: 4, fontWeight: 'bold' }}>
-                Login to Your Account
-              </Typography>
-              <Box component="form" sx={{ mt: 1 }}>
-                <TextField
-                  margin="normal"
-                  required
-                  fullWidth
-                  id="email"
-                  label="Email Address"
-                  name="email"
-                  autoComplete="email"
-                  autoFocus
+      <Box 
+        sx={{ 
+          py: 10, 
+          backgroundColor: 'background.default',
+          position: 'relative',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center'
+        }}
+      >
+        <Container maxWidth="md">
+          <Grid container spacing={4} alignItems="center" justifyContent="center">
+            <Grid item xs={12} md={6} sx={{ display: { xs: 'none', md: 'block' } }}>
+              <Box sx={{ position: 'relative', height: '450px', borderRadius: 3, overflow: 'hidden', boxShadow: 5 }}>
+                <Image 
+                  src="/images/e-learning-portal/hero.png" 
+                  alt="Economics E-Learning" 
+                  layout="fill" 
+                  objectFit="cover"
                 />
-                <TextField
-                  margin="normal"
-                  required
-                  fullWidth
-                  name="password"
-                  label="Password"
-                  type="password"
-                  id="password"
-                  autoComplete="current-password"
-                />
-                <StyledButton
-                  type="submit"
-                  variant="contained"
-                  color="primary"
-                  sx={{ width: '100%', mt: 3, mb: 2 }}
-                >
-                  Sign In
-                </StyledButton>
-                <Grid container>
-                  <Grid item xs>
-                    <Link href="#" passHref>
-                      <Typography component="a" variant="body2" sx={{ color: 'primary.main' }}>
-                        Forgot password?
-                      </Typography>
-                    </Link>
-                  </Grid>
-                  <Grid item>
-                    <Link href="/payment" passHref>
-                      <Typography component="a" variant="body2" sx={{ color: 'primary.main' }}>
-                        {"Don't have an account? Sign Up"}
-                      </Typography>
-                    </Link>
-                  </Grid>
-                </Grid>
+                <Box sx={{ 
+                  position: 'absolute', 
+                  top: 0, 
+                  left: 0, 
+                  right: 0, 
+                  bottom: 0, 
+                  backgroundColor: 'rgba(18, 124, 113, 0.75)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  p: 4 
+                }}>
+                  <Typography variant="h3" sx={{ color: 'white', mb: 2, fontWeight: 'bold' }}>
+                    Welcome Back
+                  </Typography>
+                  <Typography variant="body1" sx={{ color: 'white', textAlign: 'center', mb: 4 }}>
+                    Access your economics learning materials, track your progress, and excel in your board exams.
+                  </Typography>
+                  <Link href="/payment" passHref>
+                    <StyledButton 
+                      color="secondary" 
+                      size="large" 
+                      variant="contained"
+                    >
+                      New Student? Join Now
+                    </StyledButton>
+                  </Link>
+                </Box>
               </Box>
-            </CardContent>
-          </Card>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Card sx={{ borderRadius: 3, boxShadow: 5, p: { xs: 2, sm: 3 } }}>
+                <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                  <Typography component="h1" variant="h4" align="center" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+                    Sign In
+                  </Typography>
+                  
+                  {error && (
+                    <Alert severity="error" sx={{ mb: 3 }}>
+                      {error}
+                    </Alert>
+                  )}
+                  
+                  {success && (
+                    <Alert severity="success" sx={{ mb: 3 }}>
+                      Login successful! Redirecting to dashboard...
+                    </Alert>
+                  )}
+                  
+                  <Box component="form" onSubmit={handleSubmit}>
+                    <TextField
+                      margin="normal"
+                      required
+                      fullWidth
+                      id="email"
+                      label="Email Address"
+                      name="email"
+                      autoComplete="email"
+                      autoFocus
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={loading || success}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <EmailIcon color="primary" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ mb: 2 }}
+                    />
+                    
+                    <TextField
+                      margin="normal"
+                      required
+                      fullWidth
+                      name="password"
+                      label="Password"
+                      type="password"
+                      id="password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading || success}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockIcon color="primary" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ mb: 2 }}
+                    />
+                    
+                    <StyledButton
+                      type="submit"
+                      variant="contained"
+                      color="primary"
+                      size="large"
+                      sx={{ width: '100%', mt: 3, mb: 2 }}
+                      disabled={loading || success}
+                    >
+                      {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+                    </StyledButton>
+                    
+                    <Grid container spacing={2} sx={{ mt: 2 }}>
+                      <Grid item xs={12} sm={6}>
+                        <Link href="/forgot-password" passHref>
+                          <Typography component="a" variant="body2" sx={{ color: 'primary.main', textAlign: 'center', display: 'block' }}>
+                            Forgot password?
+                          </Typography>
+                        </Link>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Link href="/payment" passHref>
+                          <Typography component="a" variant="body2" sx={{ color: 'primary.main', textAlign: 'center', display: 'block' }}>
+                            New student? Don&apos;t have an account?
+                          </Typography>
+                        </Link>
+                      </Grid>
+                    </Grid>
+
+                    <Divider sx={{ my: 3 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        OR
+                      </Typography>
+                    </Divider>
+
+                    <Link href="/" passHref>
+                      <Typography component="a" variant="body2" sx={{ color: 'text.secondary', textAlign: 'center', display: 'block' }}>
+                        Return to Home Page
+                      </Typography>
+                    </Link>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         </Container>
       </Box>
     </>

@@ -51,7 +51,6 @@ const HomeContact = (): JSX.Element => {
       })
       
       const data = await response.json()
-      console.log('Contact form submission response:', data)
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to send message')
@@ -64,7 +63,6 @@ const HomeContact = (): JSX.Element => {
       if (data.isDevelopment) {
         successMessage = 'Development mode: Your message was processed, but no emails were sent. Set up the Resend API key to enable email functionality.'
         severity = 'warning'
-        console.warn('Running in development mode without Resend API key. No emails were actually sent.')
       } 
       // Check if both emails were sent successfully
       else if (data.data?.adminEmail && data.data?.autoResponse) {
@@ -73,7 +71,6 @@ const HomeContact = (): JSX.Element => {
         // Only admin email was sent
         successMessage = 'Your message has been received, but we could not send you a confirmation email. Please check your email address.'
         severity = 'warning'
-        console.warn('Auto-response failed:', data.data.autoResponseError)
       }
       
       // Success

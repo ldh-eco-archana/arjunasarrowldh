@@ -167,6 +167,48 @@ const Navigation: FC = () => {
           </Box>
         );
       })}
+
+      {/* Add Login link for e-learning related pages */}
+      {isELearningRelatedPage && router.pathname !== '/login' && (
+        <Link href="/login" passHref>
+          <Box
+            component="a"
+            sx={{
+              position: 'relative',
+              color: 'text.disabled',
+              cursor: 'pointer',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              px: { xs: 0, md: 3 },
+              mb: { xs: 3, md: 0 },
+              fontSize: { xs: '1.2rem', md: 'inherit' },
+              textDecoration: 'none',
+              '& > div': { display: 'none' },
+              '&:hover': {
+                color: 'primary.main',
+                '&>div': {
+                  display: 'block',
+                },
+              },
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 12,
+                transform: 'rotate(3deg)',
+                '& img': { width: 44, height: 'auto' },
+              }}
+            >
+              {/* eslint-disable-next-line */}
+              <img src="/images/headline-curve.svg" alt="Headline curve" />
+            </Box>
+            Login
+          </Box>
+        </Link>
+      )}
     </Box>
   )
 }

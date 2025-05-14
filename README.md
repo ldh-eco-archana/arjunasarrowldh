@@ -49,6 +49,58 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
 
+## Admin API Operations
+
+The application includes admin API endpoints for user management. These operations require the `ADMIN_PASSWORD` environment variable to be set in a `.env.local` file and only work in development mode. Below are examples of using these APIs with cURL.
+
+```bash
+# Add this to your .env.local file
+ADMIN_PASSWORD=your-secure-admin-password
+```
+
+### Delete a User
+
+Use the following cURL command to delete a user:
+
+```bash
+curl -X POST http://localhost:3000/api/admin/delete-user \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adminPassword": "your-admin-password-from-env",
+    "userId": "USER_ID_TO_DELETE"
+  }'
+```
+
+Replace `USER_ID_TO_DELETE` with the actual Supabase user ID you want to delete.
+
+### Create a User
+
+To create a pre-verified user:
+
+```bash
+curl -X POST http://localhost:3000/api/admin/create-user \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adminPassword": "your-admin-password-from-env",
+    "userData": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "mobile": "1234567890",
+      "password": "password123",
+      "confirmPassword": "password123",
+      "schoolName": "Example School",
+      "city": "Example City",
+      "currentClass": "11",
+      "board": "CBSE"
+    }
+  }'
+```
+
+All user data is stored in the Supabase Auth user_metadata field, making it accessible directly from the auth user object without requiring additional database queries.
+
+These API endpoints are protected by a simple admin password. In a production environment, you should implement proper authentication and authorization.
+
 ## Credits
 
 - [Unsplash](https://unsplash.com/)

@@ -1,11 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Resend } from 'resend';
 
-// Initialize Resend with your API key
-// Get your API key from https://resend.com
-const resendApiKey = process.env.RESEND_API_KEY;
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-
 // Simple email validation regex
 const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -248,93 +243,54 @@ export default async function handler(
 </html>
     `;
 
-    // If API key is not set, return mock success for development
-    if (!resend) {
-      console.log('Resend API key not found, sending mock emails:');
-      console.log('\n1. ADMIN NOTIFICATION EMAIL:');
-      console.log('To: arjunasarrowldh@gmail.com');
-      console.log(`Subject: Arjuna's Arrow | New Inquiry from ${name}`);
-      console.log('HTML email would be sent in production mode');
+    // Check if Resend API key is available
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (!resendApiKey) {
+      // In development mode, we'll log the emails instead of sending them
+      const isDevelopment = process.env.NODE_ENV === 'development';
       
-      console.log('\n2. AUTO-RESPONSE EMAIL:');
-      console.log(`To: ${email}`);
-      console.log('Subject: Thank you for contacting Arjuna\'s Arrow');
-      console.log('HTML auto-response would be sent in production mode');
+      // Log mock emails only in development mode
+      if (isDevelopment) {
+        console.error('Resend API key not found, sending mock emails in development mode');
+      }
       
-      return res.status(200).json({ 
-        success: true, 
-        data: { id: 'mock-email-id' },
-        mode: 'development',
-        isDevelopment: true
+      return res.status(200).json({
+        data: null,
+        isDevelopment: true,
+        message: 'Email processed in development mode (not actually sent)',
       });
     }
 
+    // Initialize Resend with API key
+    const resend = new Resend(resendApiKey);
+    
     // Send admin notification email
     const adminEmailData = await resend.emails.send({
-      from: 'Arjuna\'s Arrow <no-reply@arjunasarrow.in>', // Use your verified domain once set up
+      from: 'no-reply@arjunasarrow.com',
       to: 'arjunasarrowldh@gmail.com',
       subject: `Arjuna's Arrow | New Inquiry from ${name}`,
       html: adminHtmlContent,
-      text: `
-Name: ${name}
-Email: ${email}
-Phone: ${phone || 'Not provided'}
-
-Message:
-${message}
-      `, // Fallback plain text version
     });
 
-    console.log('Admin notification email sent:', adminEmailData);
+    // Send auto-response to the user
+    const autoResponseData = await resend.emails.send({
+      from: 'no-reply@arjunasarrow.com',
+      to: email,
+      subject: 'Thank you for contacting Arjuna\'s Arrow',
+      html: autoResponseHtmlContent,
+    });
 
-    try {
-      // Send auto-response to the inquirer
-      const autoResponseData = await resend.emails.send({
-        from: 'Arjuna\'s Arrow <no-reply@arjunasarrow.in>', // Use your verified domain once set up
-        to: email,
-        subject: 'Thank you for contacting Arjuna\'s Arrow',
-        html: autoResponseHtmlContent,
-        text: `
-Dear ${name},
-
-Thank you for reaching out to Arjuna's Arrow. We have received your message and appreciate your interest in our economics coaching services.
-
-Our team will review your inquiry and get back to you as soon as possible, usually within 24-48 hours.
-
-If you have any urgent questions, please don't hesitate to contact us directly:
-
-Email: arjunasarrowldh@gmail.com
-Location: 1254 MIG, 32 Sec, Chandigarh Road, Ludhiana
-
-This is an automated response. Please do not reply to this email.
-
-© 2025 Arjuna's Arrow. All rights reserved.
-        `, // Fallback plain text version
-      });
-
-      console.log('Auto-response email sent:', autoResponseData);
-
-      return res.status(200).json({ 
-        success: true, 
-        data: { 
-          adminEmail: adminEmailData, 
-          autoResponse: autoResponseData 
-        } 
-      });
-    } catch (error: unknown) {
-      console.error('Error sending auto-response email:', error);
-      
-      // Even if auto-response fails, return success for the admin email
-      return res.status(200).json({ 
-        success: true, 
-        data: { 
-          adminEmail: adminEmailData,
-          autoResponseError: error instanceof Error ? error.message : 'Failed to send auto-response'
-        } 
-      });
-    }
-  } catch (error: unknown) {
+    return res.status(200).json({
+      data: {
+        adminEmail: adminEmailData,
+        autoResponse: autoResponseData,
+      },
+      message: 'Emails sent successfully',
+    });
+  } catch (error) {
     console.error('Error sending email:', error);
-    return res.status(500).json({ error: 'Failed to send email' });
+    return res.status(500).json({
+      error: 'Failed to send email',
+    });
   }
 } 
