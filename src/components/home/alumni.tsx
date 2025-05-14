@@ -78,7 +78,7 @@ const HomeSuccessStories: FC = () => {
 
   return (
     <Box
-      id="success-stories"
+      id="alumni"
       sx={{
         pt: {
           xs: 6,
@@ -97,7 +97,7 @@ const HomeSuccessStories: FC = () => {
         </Typography>
         
         <Typography variant="h6" sx={{ fontSize: 18, mb: 6, maxWidth: '800px', mx: 'auto', textAlign: 'center', color: 'text.secondary' }}>
-          Our students consistently achieve top marks in board exams. Here's what some of our successful alumni have to say about their experience with us.
+          Our students consistently achieve top marks in board exams. Here&apos;s what some of our successful alumni have to say about their experience with us.
         </Typography>
 
         <Slider {...sliderConfig}>

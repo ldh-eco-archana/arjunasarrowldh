@@ -46,7 +46,7 @@ const AlumniCardItem: FC<Props> = ({ item }) => {
         
         <Box sx={{ mb: 2 }}>
           <Typography sx={{ mb: 2, color: 'text.secondary', fontStyle: 'italic' }} variant="body1">
-            "{item.description}"
+            &quot;{item.description}&quot;
           </Typography>
         </Box>
         

@@ -9,11 +9,11 @@ import { AppContextType, AppPropsType } from 'next/dist/shared/lib/utils'
 import Document, { Html, Head, Main, NextScript, DocumentContext } from 'next/document'
 
 interface DocumentProps {
-  emotionStylesTags: any[]
+  emotionStylesTags: JSX.Element[]
 }
 
 class MyDocument extends Document<DocumentProps> {
-  render(): any {
+  render(): JSX.Element {
     return (
       <Html lang="en">
         <Head>
@@ -86,6 +86,7 @@ MyDocument.getInitialProps = async (ctx: DocumentContext) => {
       enhanceApp: (
         App: NextComponentType<AppContextType, AppInitialProps, AppPropsType & { emotionCache: EmotionCache }>
       ) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         function EnhanceApp(props) {
           // console.log('props ->', props)
           return <App emotionCache={cache} {...props} />
@@ -112,3 +113,5 @@ MyDocument.getInitialProps = async (ctx: DocumentContext) => {
 }
 
 export default MyDocument
+
+// `

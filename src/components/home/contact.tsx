@@ -4,12 +4,11 @@ import Grid from '@mui/material/Grid'
 import Container from '@mui/material/Container'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
-import Button from '@mui/material/Button'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import EmailIcon from '@mui/icons-material/Email'
 import { StyledButton } from '@/components/styled-button'
 
-const HomeContact = () => {
+const HomeContact = (): JSX.Element => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -17,7 +16,7 @@ const HomeContact = () => {
     message: '',
   })
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
@@ -25,7 +24,7 @@ const HomeContact = () => {
     }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
     
     // Create mailto link with form data
@@ -94,7 +93,7 @@ ${formData.message}
             </Typography>
 
             <Typography sx={{ color: 'text.secondary', mb: 4, fontSize: '1.1rem' }}>
-              Have questions about our economics coaching? Send us a message and we'll get back to you as soon as possible.
+              Have questions about our economics coaching? Send us a message and we&apos;ll get back to you as soon as possible.
             </Typography>
 
             <Box sx={{ mb: 4 }}>
@@ -165,15 +164,16 @@ ${formData.message}
                   />
                 </Grid>
                 <Grid item xs={12}>
-                  <StyledButton
-                    type="submit"
-                    color="primary"
-                    variant="contained"
-                    size="large"
-                    fullWidth
-                  >
-                    Send Message
-                  </StyledButton>
+                  <Box sx={{ width: '100%', '& button': { width: '100%' } }}>
+                    <StyledButton
+                      type="submit"
+                      color="primary"
+                      variant="contained"
+                      size="large"
+                    >
+                      Send Message
+                    </StyledButton>
+                  </Box>
                 </Grid>
               </Grid>
             </Box>
