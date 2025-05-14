@@ -7,6 +7,9 @@ import TextField from '@mui/material/TextField'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import EmailIcon from '@mui/icons-material/Email'
 import { StyledButton } from '@/components/styled-button'
+import Snackbar from '@mui/material/Snackbar'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
 
 const HomeContact = (): JSX.Element => {
   const [formData, setFormData] = useState({
@@ -14,6 +17,16 @@ const HomeContact = (): JSX.Element => {
     email: '',
     phone: '',
     message: '',
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitStatus, setSubmitStatus] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
@@ -24,29 +37,67 @@ const HomeContact = (): JSX.Element => {
     }))
   }
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
+    setIsSubmitting(true)
     
-    // Create mailto link with form data
-    const subject = `Inquiry from ${formData.name}`
-    const body = `
-Name: ${formData.name}
-Email: ${formData.email}
-Phone: ${formData.phone}
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+      
+      const data = await response.json()
+      console.log('Contact form submission response:', data)
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send message')
+      }
+      
+      let successMessage = 'Your message has been sent successfully!'
+      
+      // Check if both emails were sent successfully
+      if (data.data?.adminEmail && data.data?.autoResponse) {
+        successMessage = 'Your message has been sent successfully, and a confirmation email has been sent to your email address!'
+      } else if (data.data?.adminEmail && data.data?.autoResponseError) {
+        // Only admin email was sent
+        successMessage = 'Your message has been received, but we could not send you a confirmation email. Please check your email address.'
+        console.warn('Auto-response failed:', data.data.autoResponseError)
+      }
+      
+      // Success
+      setSubmitStatus({
+        open: true,
+        message: successMessage,
+        severity: 'success',
+      })
+      
+      // Reset form
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        message: '',
+      })
+      
+    } catch (error) {
+      console.error('Error submitting form:', error)
+      // Error
+      setSubmitStatus({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to send message',
+        severity: 'error',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
-Message:
-${formData.message}
-    `
-    
-    window.location.href = `mailto:arjunasarrowldh@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-    
-    // Reset form
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      message: '',
-    })
+  const handleCloseSnackbar = () => {
+    setSubmitStatus((prev) => ({ ...prev, open: false }))
   }
 
   return (
@@ -100,7 +151,7 @@ ${formData.message}
               <Box sx={{ display: 'flex', mb: 2 }}>
                 <LocationOnIcon sx={{ color: 'primary.main', mr: 2, fontSize: 22 }} />
                 <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                  MIG, 32 Sec, Chandigarh Road, Ludhiana
+                  1254 MIG, 32 Sec, Chandigarh Road, Ludhiana
                 </Typography>
               </Box>
               
@@ -129,6 +180,7 @@ ${formData.message}
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
+                    disabled={isSubmitting}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -140,6 +192,7 @@ ${formData.message}
                     type="email"
                     value={formData.email}
                     onChange={handleChange}
+                    disabled={isSubmitting}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -149,6 +202,7 @@ ${formData.message}
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
+                    disabled={isSubmitting}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -161,6 +215,7 @@ ${formData.message}
                     name="message"
                     value={formData.message}
                     onChange={handleChange}
+                    disabled={isSubmitting}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -170,8 +225,13 @@ ${formData.message}
                       color="primary"
                       variant="contained"
                       size="large"
+                      disabled={isSubmitting}
                     >
-                      Send Message
+                      {isSubmitting ? (
+                        <CircularProgress size={24} color="inherit" />
+                      ) : (
+                        'Send Message'
+                      )}
                     </StyledButton>
                   </Box>
                 </Grid>
@@ -180,6 +240,21 @@ ${formData.message}
           </Grid>
         </Grid>
       </Container>
+
+      <Snackbar 
+        open={submitStatus.open} 
+        autoHideDuration={6000} 
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={submitStatus.severity}
+          sx={{ width: '100%' }}
+        >
+          {submitStatus.message}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }
