@@ -264,9 +264,14 @@ export default async function handler(
     // Initialize Resend with API key
     const resend = new Resend(resendApiKey);
     
+    // Try using the verified sender domain for Resend
+    const fromEmail = process.env.NODE_ENV === 'development' 
+      ? 'onboarding@resend.dev'  // This domain is verified by default in Resend
+      : 'no-reply@arjunasarrow.in';  // Use this in production when verified
+    
     // Send admin notification email
     const adminEmailData = await resend.emails.send({
-      from: 'no-reply@arjunasarrow.com',
+      from: fromEmail,
       to: 'arjunasarrowldh@gmail.com',
       subject: `Arjuna's Arrow | New Inquiry from ${name}`,
       html: adminHtmlContent,
@@ -274,11 +279,32 @@ export default async function handler(
 
     // Send auto-response to the user
     const autoResponseData = await resend.emails.send({
-      from: 'no-reply@arjunasarrow.com',
+      from: fromEmail,
       to: email,
       subject: 'Thank you for contacting Arjuna\'s Arrow',
       html: autoResponseHtmlContent,
     });
+
+    // Check for errors in the response
+    if (adminEmailData.error || autoResponseData.error) {
+      let errorMessage = 'Failed to send email';
+      let errorCode = 'EMAIL_SERVICE_ERROR';
+      
+      // Handle domain verification errors specifically
+      if ((adminEmailData.error?.message && adminEmailData.error.message.includes('domain is not verified')) ||
+          (autoResponseData.error?.message && autoResponseData.error.message.includes('domain is not verified'))) {
+        errorMessage = 'Email domain is not verified. Please verify your domain on Resend.com or use resend.dev domain in development.';
+        errorCode = 'DOMAIN_NOT_VERIFIED';
+      }
+      
+      return res.status(500).json({
+        error: errorMessage,
+        errorCode: errorCode,
+        details: process.env.NODE_ENV === 'development' 
+          ? JSON.stringify({ adminError: adminEmailData.error, userError: autoResponseData.error }) 
+          : undefined
+      });
+    }
 
     return res.status(200).json({
       data: {
@@ -289,8 +315,51 @@ export default async function handler(
     });
   } catch (error) {
     console.error('Error sending email:', error);
+    
+    // Determine specific error type for better client-side handling
+    let errorMessage = 'Failed to send email';
+    let errorCode = 'UNKNOWN_ERROR';
+    
+    if (error instanceof Error) {
+      // Check for specific Resend API errors
+      if (error.message.includes('rate limit')) {
+        errorMessage = 'Email sending rate limit exceeded. Please try again later.';
+        errorCode = 'RATE_LIMIT_EXCEEDED';
+      } else if (error.message.includes('invalid email')) {
+        errorMessage = 'The email address provided is invalid or rejected by the mail server.';
+        errorCode = 'INVALID_EMAIL';
+      } else if (error.message.includes('authentication')) {
+        errorMessage = 'Server configuration error: Email service authentication failed.';
+        errorCode = 'AUTH_ERROR';
+      } else if (error.message.includes('network')) {
+        errorMessage = 'Network error while sending email. Please check your connection.';
+        errorCode = 'NETWORK_ERROR';
+      } else if (error.message.includes('domain is not verified')) {
+        errorMessage = 'The email service domain is not verified. Please contact the administrator.';
+        errorCode = 'DOMAIN_NOT_VERIFIED';
+      } else {
+        // Use the actual error message for other types of errors
+        errorMessage = error.message || 'Failed to send email';
+      }
+    }
+    
+    // Check if the error is a Resend API validation error
+    interface ResendValidationError {
+      statusCode?: number;
+      name?: string;
+      message: string;
+    }
+    
+    const resendError = error as ResendValidationError;
+    if (resendError.statusCode === 403 && resendError.name === 'validation_error') {
+      errorMessage = 'Email configuration error: ' + resendError.message;
+      errorCode = 'DOMAIN_NOT_VERIFIED';
+    }
+    
     return res.status(500).json({
-      error: 'Failed to send email',
+      error: errorMessage,
+      errorCode: errorCode,
+      details: process.env.NODE_ENV === 'development' ? String(error) : undefined
     });
   }
 } 
