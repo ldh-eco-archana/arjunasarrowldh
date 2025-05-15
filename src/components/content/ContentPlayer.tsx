@@ -15,8 +15,11 @@ const SecurePdfObject = styled('object')`
   max-width: 100%;
   overflow: auto !important; /* Force scrollable */
   position: relative; /* For overlay positioning */
-  touch-action: pan-y !important; /* Force enable vertical touch scrolling */
+  touch-action: pan-y pan-x !important; /* Enable both vertical and horizontal touch scrolling */
   -webkit-overflow-scrolling: touch; /* Enable momentum scrolling on iOS */
+  -webkit-user-select: none; /* Prevent selection */
+  object-fit: contain !important; /* Prevent stretching in landscape */
+  aspect-ratio: auto !important; /* Maintain aspect ratio */
   &::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -25,6 +28,22 @@ const SecurePdfObject = styled('object')`
     background-color: rgba(0,0,0,0.2);
     border-radius: 4px;
   }
+`
+
+// Iframe fallback for browsers that don't support PDF objects
+const SecurePdfIframe = styled('iframe')`
+  width: 100%;
+  height: 70vh;
+  border: 1px solid ${props => props.theme.palette.divider};
+  border-radius: ${props => props.theme.shape.borderRadius}px;
+  max-width: 100%;
+  overflow: auto !important;
+  position: relative;
+  touch-action: pan-y pan-x !important;
+  -webkit-overflow-scrolling: touch;
+  -webkit-user-select: none;
+  object-fit: contain !important;
+  aspect-ratio: auto !important;
 `
 
 // Security overlay to prevent screenshots and direct interaction
@@ -60,6 +79,9 @@ const SecurityOverlay = styled('div')`
     height: 100%;
     background: transparent;
     pointer-events: auto; /* Only block right-clicks on the edge */
+    @media (max-width: 600px) {
+      width: 20px; /* Smaller touch area on mobile */
+    }
   }
 `
 
@@ -90,7 +112,10 @@ const SecurePdfContainer = styled('div')`
   -khtml-user-select: none; /* Prevent selection on old browsers */
   -moz-user-select: none; /* Prevent selection on Firefox */
   -ms-user-select: none; /* Prevent selection on IE/Edge */
-  touch-action: pan-y; /* Enable vertical touch scrolling */
+  touch-action: pan-y pan-x; /* Enable both vertical and horizontal touch scrolling */
+  @media (orientation: landscape) {
+    max-height: 90vh; /* Prevent overflow in landscape mode */
+  }
 `
 
 // Styled video element
@@ -118,10 +143,12 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
   const [videoUrl, setVideoUrl] = useState('')
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [useBlobUrl, setUseBlobUrl] = useState(false)
+  const [useFallbackViewer, setUseFallbackViewer] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pdfContainerRef = useRef<HTMLDivElement>(null)
   const pdfObjectRef = useRef<HTMLObjectElement>(null)
+  const pdfIframeRef = useRef<HTMLIFrameElement>(null)
   const interactionLayerRef = useRef<HTMLDivElement>(null)
 
   // Function to handle errors
@@ -329,6 +356,20 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     }
   };
 
+  // Detect problematic browsers on mount
+  useEffect(() => {
+    if (content.content_type === 'pdf') {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isSamsung = userAgent.includes('samsung') || userAgent.includes('sm-');
+      const isMobile = /android|iphone|ipad|ipod/i.test(userAgent);
+      
+      // Enable fallback viewer for Samsung devices or if it's a mobile device
+      if (isSamsung || isMobile) {
+        setUseFallbackViewer(true);
+      }
+    }
+  }, [content.content_type]);
+
   // Content type-specific rendering
   if (loading && content.content_type === 'video') {
     return (
@@ -355,21 +396,50 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
           onContextMenu={preventActions}
           onDragStart={preventActions}
         >
-          <SecurePdfObject
-            ref={pdfObjectRef}
-            data={`${content.file_url}#toolbar=0&navpanes=0&scrollbar=1&statusbar=0&messages=0&scrolling=1&view=FitH`}
-            type="application/pdf"
-          >
-            <Typography color="error">
-              Your browser doesn&apos;t support embedded PDFs. Please contact support for assistance.
-            </Typography>
-          </SecurePdfObject>
+          {useFallbackViewer ? (
+            <SecurePdfIframe
+              ref={pdfIframeRef}
+              src={`${content.file_url}#toolbar=0&navpanes=0&scrollbar=1&statusbar=0&messages=0&scrolling=1&view=FitH`}
+              title={content.title}
+              sandbox="allow-scripts allow-same-origin"
+              onLoad={() => setLoading(false)}
+            />
+          ) : (
+            <SecurePdfObject
+              ref={pdfObjectRef}
+              data={`${content.file_url}#toolbar=0&navpanes=0&scrollbar=1&statusbar=0&messages=0&scrolling=1&view=FitH`}
+              type="application/pdf"
+              onLoad={() => setLoading(false)}
+            >
+              <Typography color="error">
+                Your browser doesn&apos;t support embedded PDFs. <br/>
+                <Box sx={{ mt: 1, textAlign: 'center' }}>
+                  <Typography 
+                    component="button" 
+                    variant="body2" 
+                    onClick={() => setUseFallbackViewer(true)}
+                    sx={{ 
+                      cursor: 'pointer', 
+                      color: 'primary.main',
+                      textDecoration: 'underline',
+                      background: 'none',
+                      border: 'none',
+                      p: 1
+                    }}
+                  >
+                    Click here to try alternative viewer
+                  </Typography>
+                </Box>
+              </Typography>
+            </SecurePdfObject>
+          )}
           
           <InteractionLayer 
             ref={interactionLayerRef}
             onContextMenu={preventActions} 
             onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
             onMouseDown={(e: React.MouseEvent<HTMLDivElement>) => e.button === 2 && e.preventDefault()}
+            style={{ pointerEvents: useFallbackViewer ? 'none' : 'auto' }}
           />
           
           <SecurityOverlay />
@@ -409,6 +479,11 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
           <Typography variant="caption" fontWeight="bold" color="error.main">
             For educational use only. No printing or download allowed.
           </Typography>
+          {useFallbackViewer && (
+            <Typography variant="caption" color="primary.main" sx={{ cursor: 'pointer' }} onClick={() => setUseFallbackViewer(false)}>
+              Try standard viewer
+            </Typography>
+          )}
         </Box>
       </Box>
     )
