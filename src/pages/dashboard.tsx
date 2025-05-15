@@ -9,7 +9,6 @@ import { useRouter } from 'next/router'
 import { getCurrentUser, signOut } from '@/lib/supabaseClient'
 import Button from '@mui/material/Button'
 import LogoutIcon from '@mui/icons-material/Logout'
-import { User as AuthUser } from '@supabase/supabase-js'
 import { getUserProfile } from '@/lib/supabase-helpers'
 import { User } from '@/types/database.types'
 import Tabs from '@mui/material/Tabs'
@@ -68,7 +67,7 @@ const Dashboard: NextPageWithLayout = () => {
         }
         
         // Fetch user profile data from the users table
-        const profile = await getUserProfile()
+        const profile = await getUserProfile(currentUser.id)
         setUserProfile(profile)
       } catch (error) {
         console.error('Error checking authentication:', error)
@@ -140,6 +139,7 @@ const Dashboard: NextPageWithLayout = () => {
               color="primary" 
               startIcon={<LogoutIcon />}
               onClick={handleSignOut}
+              sx={{ whiteSpace: 'nowrap' }}
             >
               Sign Out
             </Button>

@@ -4,8 +4,16 @@ import { Link as ScrollLink } from 'react-scroll'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { navigations } from './navigation.data'
+import { signOut } from '@/lib/supabaseClient'
+import LogoutIcon from '@mui/icons-material/Logout'
+import Button from '@mui/material/Button'
 
-const Navigation: FC = () => {
+interface NavigationProps {
+  isMobile?: boolean;
+  onCloseMenu?: () => void;
+}
+
+const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
   const router = useRouter();
   const isELearningRelatedPage = 
     router.pathname === '/e-learning-portal' || 
@@ -19,10 +27,38 @@ const Navigation: FC = () => {
     router.pathname === '/profile' || 
     router.pathname === '/change-password';
   
+  const handleLinkClick = (): void => {
+    if (isMobile && onCloseMenu) {
+      onCloseMenu();
+    }
+  };
+
+  const handleSignOut = async (): Promise<void> => {
+    try {
+      // Close menu if on mobile
+      if (isMobile && onCloseMenu) {
+        onCloseMenu();
+      }
+      await signOut()
+      router.push('/login')
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
+
+  const navBoxStyles = {
+    display: 'flex', 
+    flexDirection: { xs: 'column', md: 'row' },
+    alignItems: 'center',
+    width: isMobile ? '100%' : 'auto',
+    mt: isMobile ? 2 : 0,
+    gap: isMobile ? 3 : 0
+  };
+  
   // If on dashboard, profile, or change password, only show these navigation links
   if (isAuthenticatedUserPage) {
     return (
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+      <Box sx={navBoxStyles}>
         <Link href="/dashboard" passHref>
           <Box
             component="a"
@@ -46,6 +82,7 @@ const Navigation: FC = () => {
                 },
               },
             }}
+            onClick={handleLinkClick}
           >
             <Box
               sx={{
@@ -86,6 +123,7 @@ const Navigation: FC = () => {
                 },
               },
             }}
+            onClick={handleLinkClick}
           >
             <Box
               sx={{
@@ -126,6 +164,7 @@ const Navigation: FC = () => {
                 },
               },
             }}
+            onClick={handleLinkClick}
           >
             <Box
               sx={{
@@ -142,12 +181,28 @@ const Navigation: FC = () => {
             Change Password
           </Box>
         </Link>
+        
+        <Button
+          variant="text"
+          color="primary"
+          startIcon={<LogoutIcon />}
+          onClick={handleSignOut}
+          sx={{
+            ml: { xs: 0, md: 2 },
+            mt: { xs: 1, md: 0 },
+            whiteSpace: 'nowrap',
+            fontWeight: 600,
+            fontSize: { xs: '1.2rem', md: 'inherit' },
+          }}
+        >
+          Sign Out
+        </Button>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+    <Box sx={navBoxStyles}>
       {navigations.map(({ path: destination, label }) => {
         // Filter out Alumni, Books, and Contact when on e-learning portal related pages
         if (isELearningRelatedPage && 
@@ -188,6 +243,7 @@ const Navigation: FC = () => {
                     },
                   },
                 }}
+                onClick={handleLinkClick}
               >
                 <Box
                   sx={{
@@ -232,6 +288,7 @@ const Navigation: FC = () => {
                     },
                   },
                 }}
+                onClick={handleLinkClick}
               >
                 <Box
                   sx={{
@@ -261,6 +318,7 @@ const Navigation: FC = () => {
             spy={true}
             smooth={true}
             duration={350}
+            onClick={handleLinkClick}
             sx={{
               position: 'relative',
               color: 'text.disabled',
@@ -326,6 +384,7 @@ const Navigation: FC = () => {
                 },
               },
             }}
+            onClick={handleLinkClick}
           >
             <Box
               sx={{

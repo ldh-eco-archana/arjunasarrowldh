@@ -3,24 +3,36 @@ import { User } from '@/types/database.types';
 
 /**
  * Get the current user's profile
+ * @param userId Optional user ID to fetch (if not provided, will use current session)
  * @returns User profile or null if not authenticated
  */
-export const getUserProfile = async (): Promise<User | null> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return null;
-  
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', session.user.id)
-    .single();
+export const getUserProfile = async (userId?: string): Promise<User | null> => {
+  try {
+    if (!userId) {
+      // Get current session if userId is not provided
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return null;
+      userId = session.user.id;
+    }
     
-  if (error) {
-    console.error('Error fetching user profile:', error);
+    if (!userId) return null;
+    
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+      
+    if (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
+    }
+    
+    return data as User;
+  } catch (error) {
+    console.error('Unexpected error in getUserProfile:', error);
     return null;
   }
-  
-  return data as User;
 };
 
 /**

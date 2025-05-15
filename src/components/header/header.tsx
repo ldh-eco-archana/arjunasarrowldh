@@ -14,6 +14,10 @@ const Header: FC = () => {
   const { breakpoints } = useTheme()
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
 
+  const handleCloseMenu = (): void => {
+    setVisibleMenu(false)
+  }
+
   useEffect(() => {
     const handleScroll = (): void => {
       if (window.scrollY > 10) {
@@ -65,11 +69,13 @@ const Header: FC = () => {
                 height: { xs: '100vh', md: 'auto' },
                 top: visibleMenu ? 0 : '-120vh',
                 left: 0,
+                justifyContent: 'flex-start',
+                paddingTop: '60px',
               }),
             }}
           >
-            <Box /> {/* Magic space */}
-            <Navigation />
+            {matchMobileView ? null : <Box />} {/* Magic space only for desktop */}
+            <Navigation isMobile={matchMobileView} onCloseMenu={handleCloseMenu} />
             {visibleMenu && matchMobileView && (
               <IconButton
                 sx={{

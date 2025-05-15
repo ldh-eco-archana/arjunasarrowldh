@@ -25,7 +25,6 @@ const ChangePassword: NextPageWithLayout = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | ''>('')
 
   useEffect(() => {
     // Check for authenticated user
@@ -45,61 +44,6 @@ const ChangePassword: NextPageWithLayout = () => {
     
     checkAuth()
   }, [router])
-
-  // Check password strength
-  useEffect(() => {
-    if (!newPassword) {
-      setPasswordStrength('')
-      return
-    }
-
-    // Define password strength criteria
-    const hasLowerCase = /[a-z]/.test(newPassword)
-    const hasUpperCase = /[A-Z]/.test(newPassword)
-    const hasNumbers = /\d/.test(newPassword)
-    const hasSpecialChars = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
-    const isLongEnough = newPassword.length >= 8
-
-    // Calculate strength
-    const criteria = [hasLowerCase, hasUpperCase, hasNumbers, hasSpecialChars, isLongEnough]
-    const metCriteria = criteria.filter(Boolean).length
-
-    if (metCriteria <= 2) {
-      setPasswordStrength('weak')
-    } else if (metCriteria <= 4) {
-      setPasswordStrength('medium')
-    } else {
-      setPasswordStrength('strong')
-    }
-  }, [newPassword])
-
-  const getPasswordHelperText = (): string => {
-    if (!newPassword) return 'Enter your new password'
-    
-    switch (passwordStrength) {
-      case 'weak':
-        return 'Weak password - add numbers, special characters, or make it longer'
-      case 'medium':
-        return 'Medium strength - consider adding more variety to make it stronger'
-      case 'strong':
-        return 'Strong password'
-      default:
-        return 'Enter your new password'
-    }
-  }
-
-  const getPasswordColor = (): 'error' | 'warning' | 'success' | 'primary' => {
-    switch (passwordStrength) {
-      case 'weak':
-        return 'error'
-      case 'medium':
-        return 'warning'
-      case 'strong':
-        return 'success'
-      default:
-        return 'primary'
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -217,11 +161,11 @@ const ChangePassword: NextPageWithLayout = () => {
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <LockIcon color={getPasswordColor()} />
+                        <LockIcon color="primary" />
                       </InputAdornment>
                     ),
                   }}
-                  helperText={getPasswordHelperText()}
+                  helperText="Password must be at least 6 characters long"
                   sx={{ mb: 2 }}
                 />
                 

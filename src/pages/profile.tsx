@@ -40,7 +40,7 @@ const Profile: NextPageWithLayout = () => {
         }
         
         // Fetch user profile data from the users table
-        const profile = await getUserProfile()
+        const profile = await getUserProfile(currentUser.id)
         setUserProfile(profile)
         
         // Calculate days remaining if we have a subscription end date
@@ -69,18 +69,6 @@ const Profile: NextPageWithLayout = () => {
       day: 'numeric' 
     }
     return new Date(dateString).toLocaleDateString(undefined, options)
-  }
-
-  if (loading) {
-    return (
-      <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
-        <Container maxWidth="lg">
-          <Typography variant="h4" component="h1" align="center">
-            Loading...
-          </Typography>
-        </Container>
-      </Box>
-    )
   }
 
   // Determine background color for the subscription status banner
@@ -115,6 +103,18 @@ const Profile: NextPageWithLayout = () => {
   }
 
   const bannerStyles = getSubscriptionBannerStyles();
+
+  if (loading) {
+    return (
+      <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
+        <Container maxWidth="lg">
+          <Typography variant="h4" component="h1" align="center">
+            Loading...
+          </Typography>
+        </Container>
+      </Box>
+    )
+  }
 
   return (
     <>
