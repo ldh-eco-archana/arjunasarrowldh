@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
+import { GetServerSideProps } from 'next'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
 import Head from 'next/head'
@@ -8,8 +9,6 @@ import Typography from '@mui/material/Typography'
 import Paper from '@mui/material/Paper'
 import Grid from '@mui/material/Grid'
 import { useRouter } from 'next/router'
-import { getCurrentUser } from '@/lib/supabaseClient'
-import { getUserProfile } from '@/lib/supabase-helpers'
 import { User } from '@/types/database.types'
 import Divider from '@mui/material/Divider'
 import List from '@mui/material/List'
@@ -20,47 +19,25 @@ import SchoolIcon from '@mui/icons-material/School'
 import LocationCityIcon from '@mui/icons-material/LocationCity'
 import PhoneIcon from '@mui/icons-material/Phone'
 import EmailIcon from '@mui/icons-material/Email'
+import { createServerClient } from '@supabase/ssr'
 
-const Profile: NextPageWithLayout = () => {
-  const router = useRouter()
-  const [userProfile, setUserProfile] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [daysRemaining, setDaysRemaining] = useState<number | null>(null)
+interface ProfileProps {
+  userProfile: User | null;
+  error?: string;
+}
 
-  useEffect(() => {
-    // Check for authenticated user and fetch profile
-    const fetchUserData = async (): Promise<void> => {
-      try {
-        const currentUser = await getCurrentUser()
-        
-        if (!currentUser) {
-          // Redirect to login if not authenticated
-          router.push('/login')
-          return
-        }
-        
-        // Fetch user profile data from the users table
-        const profile = await getUserProfile(currentUser.id)
-        setUserProfile(profile)
-        
-        // Calculate days remaining if we have a subscription end date
-        if (profile?.subscription_end_date) {
-          const endDate = new Date(profile.subscription_end_date)
-          const today = new Date()
-          const timeDiff = endDate.getTime() - today.getTime()
-          const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24))
-          setDaysRemaining(daysDiff)
-        }
-      } catch (error) {
-        console.error('Error checking authentication:', error)
-        router.push('/login')
-      } finally {
-        setLoading(false)
-      }
+const Profile: NextPageWithLayout<ProfileProps> = ({ userProfile, error }) => {
+  const [daysRemaining] = useState<number | null>(() => {
+    // Calculate days remaining if we have a subscription end date
+    if (userProfile?.subscription_end_date) {
+      const endDate = new Date(userProfile.subscription_end_date)
+      const today = new Date()
+      const timeDiff = endDate.getTime() - today.getTime()
+      const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24))
+      return daysDiff
     }
-    
-    fetchUserData()
-  }, [router])
+    return null
+  })
 
   const formatDate = (dateString: string): string => {
     const options: Intl.DateTimeFormatOptions = { 
@@ -104,12 +81,12 @@ const Profile: NextPageWithLayout = () => {
 
   const bannerStyles = getSubscriptionBannerStyles();
 
-  if (loading) {
+  if (error) {
     return (
       <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
         <Container maxWidth="lg">
-          <Typography variant="h4" component="h1" align="center">
-            Loading...
+          <Typography variant="h4" component="h1" align="center" color="error">
+            {error}
           </Typography>
         </Container>
       </Box>
@@ -255,6 +232,73 @@ const Profile: NextPageWithLayout = () => {
     </>
   )
 }
+
+export const getServerSideProps: GetServerSideProps<ProfileProps> = async (context) => {
+  const { req, res } = context;
+  
+  // Create server-side Supabase client
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies[name];
+        },
+        set(name: string, value: string, _options: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
+        },
+        remove(name: string, _options: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+        },
+      },
+    }
+  );
+
+  try {
+    // Check for authenticated user with getUser() for improved security
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        redirect: {
+          destination: '/login',
+          permanent: false,
+        },
+      };
+    }
+
+    // Fetch user profile from database
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) {
+      return {
+        props: {
+          userProfile: null,
+          error: 'Failed to load user profile',
+        },
+      };
+    }
+
+    return {
+      props: {
+        userProfile: profile,
+      },
+    };
+  } catch (error) {
+    console.error('Server-side error:', error);
+    return {
+      redirect: {
+        destination: '/login',
+        permanent: false,
+      }
+    };
+  }
+};
 
 Profile.getLayout = (page) => <MainLayout>{page}</MainLayout>
 

@@ -4,9 +4,9 @@ import { Link as ScrollLink } from 'react-scroll'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { navigations } from './navigation.data'
-import { signOut } from '@/lib/supabaseClient'
 import LogoutIcon from '@mui/icons-material/Logout'
 import Button from '@mui/material/Button'
+import { createClient } from '@/utils/supabase/client'
 
 interface NavigationProps {
   isMobile?: boolean;
@@ -39,7 +39,11 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
       if (isMobile && onCloseMenu) {
         onCloseMenu();
       }
-      await signOut()
+      
+      // Use the new Supabase client
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      
       router.push('/login')
     } catch (error) {
       console.error('Error signing out:', error)

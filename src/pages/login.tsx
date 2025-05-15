@@ -13,13 +13,13 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Alert from '@mui/material/Alert'
 import { useRouter } from 'next/router'
-import { signIn } from '@/lib/supabaseClient'
 import InputAdornment from '@mui/material/InputAdornment'
 import EmailIcon from '@mui/icons-material/Email'
 import LockIcon from '@mui/icons-material/Lock'
 import Image from 'next/image'
 import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
+import { createClient } from '@/utils/supabase/client'
 
 const Login: NextPageWithLayout = () => {
   const router = useRouter()
@@ -35,7 +35,11 @@ const Login: NextPageWithLayout = () => {
     setLoading(true)
 
     try {
-      const { data, error } = await signIn(email, password)
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
 
       if (error) {
         throw error
@@ -43,10 +47,9 @@ const Login: NextPageWithLayout = () => {
 
       if (data?.user) {
         setSuccess(true)
+        
         // Redirect to dashboard after successful login
-        setTimeout(() => {
-          router.push('/dashboard')
-        }, 1500)
+        router.push('/dashboard')
       }
     } catch (error: unknown) {
       const err = error as Error

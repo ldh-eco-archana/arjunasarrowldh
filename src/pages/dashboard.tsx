@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { GetServerSideProps } from 'next'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
 import Head from 'next/head'
@@ -6,19 +7,25 @@ import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
 import Typography from '@mui/material/Typography'
 import { useRouter } from 'next/router'
-import { getCurrentUser, signOut } from '@/lib/supabaseClient'
 import Button from '@mui/material/Button'
 import LogoutIcon from '@mui/icons-material/Logout'
-import { getUserProfile } from '@/lib/supabase-helpers'
 import { User } from '@/types/database.types'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Paper from '@mui/material/Paper'
+import { createClient as createClientBrowser } from '@/utils/supabase/client'
+import { createServerClient } from '@supabase/ssr'
+import Alert from '@mui/material/Alert'
 
 interface TabPanelProps {
   children?: React.ReactNode
   index: number
   value: number
+}
+
+interface DashboardProps {
+  user: User | null
+  error?: string
 }
 
 function TabPanel(props: TabPanelProps): JSX.Element {
@@ -48,41 +55,40 @@ function a11yProps(index: number): { id: string; 'aria-controls': string } {
   }
 }
 
-const Dashboard: NextPageWithLayout = () => {
+const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
   const router = useRouter()
-  const [userProfile, setUserProfile] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
   const [tabValue, setTabValue] = useState(0)
+  const [sessionStatus, setSessionStatus] = useState<string | null>(null)
 
   useEffect(() => {
-    // Check for authenticated user and fetch profile
-    const fetchUserData = async (): Promise<void> => {
-      try {
-        const currentUser = await getCurrentUser()
-        
-        if (!currentUser) {
-          // Redirect to login if not authenticated
+    // Verify session on client-side as well
+    const checkSession = async (): Promise<void> => {
+      const supabase = createClientBrowser()
+      const { data, error } = await supabase.auth.getSession()
+      
+      if (error || !data.session) {
+        setSessionStatus('No valid session found. Redirecting...')
+        setTimeout(() => {
           router.push('/login')
-          return
-        }
-        
-        // Fetch user profile data from the users table
-        const profile = await getUserProfile(currentUser.id)
-        setUserProfile(profile)
-      } catch (error) {
-        console.error('Error checking authentication:', error)
-        router.push('/login')
-      } finally {
-        setLoading(false)
+        }, 2000)
+      } else {
+        setSessionStatus('Session valid')
       }
     }
     
-    fetchUserData()
+    checkSession()
   }, [router])
 
   const handleSignOut = async (): Promise<void> => {
     try {
-      await signOut()
+      const supabase = createClientBrowser()
+      const { error } = await supabase.auth.signOut()
+      
+      if (error) {
+        console.error('Error signing out:', error)
+        return
+      }
+      
       router.push('/login')
     } catch (error) {
       console.error('Error signing out:', error)
@@ -95,19 +101,19 @@ const Dashboard: NextPageWithLayout = () => {
 
   // Generate course description based on class and board
   const getCourseDescription = (): string => {
-    if (!userProfile?.current_class || !userProfile?.board) {
+    if (!user?.current_class || !user?.board) {
       return "No course information available"
     }
     
-    return `Class ${userProfile.current_class}${userProfile.current_class === '12' ? 'th' : ''} - ${userProfile.board}`
+    return `Class ${user.current_class}${user.current_class === '12' ? 'th' : ''} - ${user.board}`
   }
 
-  if (loading) {
+  if (error) {
     return (
       <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
         <Container maxWidth="lg">
-          <Typography variant="h4" component="h1" align="center">
-            Loading...
+          <Typography variant="h4" component="h1" align="center" color="error">
+            {error}
           </Typography>
         </Container>
       </Box>
@@ -125,10 +131,16 @@ const Dashboard: NextPageWithLayout = () => {
       </Head>
       <Box sx={{ py: 6, backgroundColor: 'background.default' }}>
         <Container maxWidth="lg">
+          {sessionStatus === 'No valid session found. Redirecting...' && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              {sessionStatus}
+            </Alert>
+          )}
+          
           <Box sx={{ mb: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box>
               <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
-                Hi {userProfile?.first_name || 'Student'}, welcome back!
+                Hi {user?.first_name || 'Student'}, welcome back!
               </Typography>
               <Typography variant="h6" color="textSecondary">
                 Course opted: {getCourseDescription()}
@@ -175,6 +187,73 @@ const Dashboard: NextPageWithLayout = () => {
     </>
   )
 }
+
+export const getServerSideProps: GetServerSideProps<DashboardProps> = async (context) => {
+  const { req, res } = context;
+  
+  // Create server-side Supabase client
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies[name];
+        },
+        set(name: string, value: string, _options: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
+        },
+        remove(name: string, _options: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+        },
+      },
+    }
+  );
+
+  try {
+    // Check for authenticated user with getUser() for improved security
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        redirect: {
+          destination: '/login',
+          permanent: false,
+        },
+      };
+    }
+
+    // Fetch user profile from database
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) {
+      return {
+        props: {
+          user: null,
+          error: 'Failed to load user profile',
+        },
+      };
+    }
+
+    return {
+      props: {
+        user: profile,
+      },
+    };
+  } catch (error) {
+    console.error('Server-side error:', error);
+    return {
+      redirect: {
+        destination: '/login',
+        permanent: false,
+      }
+    };
+  }
+};
 
 Dashboard.getLayout = (page) => <MainLayout>{page}</MainLayout>
 

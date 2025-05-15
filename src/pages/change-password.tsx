@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
+import { GetServerSideProps } from 'next'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
 import Head from 'next/head'
@@ -11,39 +12,25 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Alert from '@mui/material/Alert'
 import { useRouter } from 'next/router'
-import { getCurrentUser, updatePassword } from '@/lib/supabaseClient'
 import InputAdornment from '@mui/material/InputAdornment'
 import LockIcon from '@mui/icons-material/Lock'
 import CircularProgress from '@mui/material/CircularProgress'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
+import { createClient } from '@/utils/supabase/client'
+import { createServerClient } from '@supabase/ssr'
 
-const ChangePassword: NextPageWithLayout = () => {
-  const router = useRouter()
+interface ChangePasswordProps {
+  email: string;
+  error?: string;
+}
+
+const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error: serverError }) => {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(serverError || '')
   const [success, setSuccess] = useState(false)
-
-  useEffect(() => {
-    // Check for authenticated user
-    const checkAuth = async (): Promise<void> => {
-      try {
-        const currentUser = await getCurrentUser()
-        
-        if (!currentUser) {
-          // Redirect to login if not authenticated
-          router.push('/login')
-        }
-      } catch (error) {
-        console.error('Error checking authentication:', error)
-        router.push('/login')
-      }
-    }
-    
-    checkAuth()
-  }, [router])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -68,24 +55,35 @@ const ChangePassword: NextPageWithLayout = () => {
     setLoading(true)
 
     try {
-      // Update the user's password
-      const { error: passwordError, success: passwordSuccess } = await updatePassword(
-        currentPassword,
-        newPassword
-      )
-
-      if (passwordError) {
-        throw passwordError
+      // Update the user's password using the new client
+      const supabase = createClient()
+      
+      // First sign in with the current password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword
+      })
+      
+      if (signInError) {
+        throw new Error('Current password is incorrect')
       }
-
-      if (passwordSuccess) {
-        setSuccess(true)
-        
-        // Clear form
-        setCurrentPassword('')
-        setNewPassword('')
-        setConfirmPassword('')
+      
+      // Then update the password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+      
+      if (updateError) {
+        throw updateError
       }
+      
+      setSuccess(true)
+      
+      // Clear form
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      
     } catch (error: unknown) {
       const err = error as Error
       setError(err.message || 'Failed to update password')
@@ -211,6 +209,57 @@ const ChangePassword: NextPageWithLayout = () => {
     </>
   )
 }
+
+export const getServerSideProps: GetServerSideProps<ChangePasswordProps> = async (context) => {
+  const { req, res } = context;
+  
+  // Create server-side Supabase client
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies[name];
+        },
+        set(name: string, value: string, _options: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
+        },
+        remove(name: string, _options: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+        },
+      },
+    }
+  );
+
+  try {
+    // Check for authenticated user with getUser() for improved security
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        redirect: {
+          destination: '/login',
+          permanent: false,
+        },
+      };
+    }
+
+    return {
+      props: {
+        email: user.email || '',
+      },
+    };
+  } catch (error) {
+    console.error('Server-side error:', error);
+    return {
+      redirect: {
+        destination: '/login',
+        permanent: false,
+      }
+    };
+  }
+};
 
 ChangePassword.getLayout = (page) => <MainLayout>{page}</MainLayout>
 
