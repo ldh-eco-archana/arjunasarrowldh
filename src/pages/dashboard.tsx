@@ -9,13 +9,31 @@ import Typography from '@mui/material/Typography'
 import { useRouter } from 'next/router'
 import Button from '@mui/material/Button'
 import LogoutIcon from '@mui/icons-material/Logout'
-import { User } from '@/types/database.types'
+import { User, Course, Book, Chapter, UserCourse } from '@/types/database.types'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Paper from '@mui/material/Paper'
 import { createClient as createClientBrowser } from '@/utils/supabase/client'
 import { createServerClient } from '@supabase/ssr'
 import Alert from '@mui/material/Alert'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
+import CardMedia from '@mui/material/CardMedia'
+import Grid from '@mui/material/Grid'
+import Accordion from '@mui/material/Accordion'
+import AccordionSummary from '@mui/material/AccordionSummary'
+import AccordionDetails from '@mui/material/AccordionDetails'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import MenuBookIcon from '@mui/icons-material/MenuBook'
+import AutoStoriesIcon from '@mui/icons-material/AutoStories'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import CircularProgress from '@mui/material/CircularProgress'
+import Chip from '@mui/material/Chip'
+import List from '@mui/material/List'
+import ListItem from '@mui/material/ListItem'
+import ListItemIcon from '@mui/material/ListItemIcon'
+import ListItemText from '@mui/material/ListItemText'
+import ListItemButton from '@mui/material/ListItemButton'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -26,6 +44,15 @@ interface TabPanelProps {
 interface DashboardProps {
   user: User | null
   error?: string
+}
+
+interface CourseWithBooks extends Course {
+  books: BookWithChapters[];
+  progress: number;
+}
+
+interface BookWithChapters extends Book {
+  chapters: Chapter[];
 }
 
 function TabPanel(props: TabPanelProps): JSX.Element {
@@ -59,6 +86,10 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
   const router = useRouter()
   const [tabValue, setTabValue] = useState(0)
   const [sessionStatus, setSessionStatus] = useState<string | null>(null)
+  const [coursesWithContent, setCoursesWithContent] = useState<CourseWithBooks[]>([])
+  const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState<string | false>(false)
+  const [loadingError, setLoadingError] = useState<string | null>(null)
 
   useEffect(() => {
     // Verify session on client-side as well
@@ -79,6 +110,145 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
     checkSession()
   }, [router])
 
+  useEffect(() => {
+    if (user?.id && tabValue === 0) {
+      fetchCourseContent(user.id)
+    }
+  }, [user, tabValue])
+
+  const fetchCourseContent = async (userId: string): Promise<void> => {
+    setLoading(true)
+    setLoadingError(null)
+    
+    try {
+      const supabase = createClientBrowser()
+      
+      // Fetch user enrolled courses
+      const { data: userCoursesData, error: userCoursesError } = await supabase
+        .from('user_courses')
+        .select(`
+          id,
+          progress,
+          courses:course_id (
+            id,
+            name,
+            description,
+            board,
+            class,
+            cover_image_url,
+            created_at,
+            updated_at
+          )
+        `)
+        .eq('user_id', userId)
+      
+      if (userCoursesError) {
+        throw new Error(`Failed to fetch courses: ${userCoursesError.message}`)
+      }
+      
+      if (!userCoursesData || userCoursesData.length === 0) {
+        setCoursesWithContent([])
+        setLoading(false)
+        return
+      }
+      
+      // Extract course IDs and validate nested structure
+      const courseIds = userCoursesData.map(uc => {
+        // Check if courses is an array with at least one element or a single object
+        const course = Array.isArray(uc.courses) ? uc.courses[0] : uc.courses;
+        if (!course) {
+          console.error("Course data structure is invalid", uc);
+          return null;
+        }
+        return course.id;
+      }).filter(Boolean) as string[];
+      
+      // Create a map for progress
+      const progressMap = new Map();
+      userCoursesData.forEach(uc => {
+        const course = Array.isArray(uc.courses) ? uc.courses[0] : uc.courses;
+        if (course) {
+          progressMap.set(course.id, uc.progress);
+        }
+      });
+      
+      // Prepare courses with their data
+      const courses: CourseWithBooks[] = userCoursesData.map(uc => {
+        const course = Array.isArray(uc.courses) ? uc.courses[0] : uc.courses;
+        if (!course) return null;
+        
+        return {
+          ...course,
+          progress: progressMap.get(course.id) || 0,
+          books: [] as BookWithChapters[]
+        };
+      }).filter(Boolean) as CourseWithBooks[];
+      
+      // Fetch books for all courses
+      const { data: booksData, error: booksError } = await supabase
+        .from('books')
+        .select('*')
+        .in('course_id', courseIds)
+      
+      if (booksError) {
+        throw new Error(`Failed to fetch books: ${booksError.message}`)
+      }
+      
+      // Create a map of course_id to books
+      const courseToBooks = new Map<string, BookWithChapters[]>()
+      booksData.forEach(book => {
+        if (!courseToBooks.has(book.course_id)) {
+          courseToBooks.set(book.course_id, [])
+        }
+        courseToBooks.get(book.course_id)?.push({...book, chapters: []})
+      })
+      
+      // Populate books in courses
+      courses.forEach(course => {
+        course.books = courseToBooks.get(course.id) || []
+      })
+      
+      // Extract book IDs
+      const bookIds = booksData.map(book => book.id)
+      
+      if (bookIds.length > 0) {
+        // Fetch chapters for all books
+        const { data: chaptersData, error: chaptersError } = await supabase
+          .from('chapters')
+          .select('*')
+          .in('book_id', bookIds)
+          .order('order_number', { ascending: true })
+        
+        if (chaptersError) {
+          throw new Error(`Failed to fetch chapters: ${chaptersError.message}`)
+        }
+        
+        // Create a map of book_id to chapters
+        const bookToChapters = new Map<string, Chapter[]>()
+        chaptersData.forEach(chapter => {
+          if (!bookToChapters.has(chapter.book_id)) {
+            bookToChapters.set(chapter.book_id, [])
+          }
+          bookToChapters.get(chapter.book_id)?.push(chapter)
+        })
+        
+        // Populate chapters in books
+        courses.forEach(course => {
+          course.books.forEach(book => {
+            book.chapters = bookToChapters.get(book.id) || []
+          })
+        })
+      }
+      
+      setCoursesWithContent(courses)
+    } catch (error) {
+      console.error('Error fetching course content:', error)
+      setLoadingError((error as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSignOut = async (): Promise<void> => {
     try {
       const supabase = createClientBrowser()
@@ -97,6 +267,14 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number): void => {
     setTabValue(newValue)
+  }
+
+  const handleAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpanded(isExpanded ? panel : false)
+  }
+
+  const navigateToChapter = (chapter: Chapter): void => {
+    router.push(`/chapter/${chapter.id}`)
   }
 
   // Generate course description based on class and board
@@ -120,6 +298,157 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
     )
   }
 
+  const renderBookCard = (book: BookWithChapters): JSX.Element => {
+    return (
+      <Card 
+        sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          height: '100%',
+          mb: 2
+        }}
+      >
+        {book.cover_image_url ? (
+          <CardMedia
+            component="img"
+            sx={{ 
+              width: { xs: '100%', sm: 140 },
+              height: { xs: 200, sm: 'auto' },
+              objectFit: 'cover'
+            }}
+            image={book.cover_image_url}
+            alt={book.title}
+          />
+        ) : (
+          <Box 
+            sx={{ 
+              width: { xs: '100%', sm: 140 },
+              height: { xs: 200, sm: 'auto' },
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'primary.light',
+              color: 'primary.contrastText'
+            }}
+          >
+            <MenuBookIcon sx={{ fontSize: 60 }} />
+          </Box>
+        )}
+        <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+          <CardContent sx={{ flex: '1 0 auto' }}>
+            <Typography component="div" variant="h5">
+              {book.title}
+            </Typography>
+            <Typography variant="subtitle1" color="text.secondary" component="div">
+              {book.description}
+            </Typography>
+          </CardContent>
+          <Box sx={{ p: 2 }}>
+            <Accordion 
+              expanded={expanded === `book-${book.id}`} 
+              onChange={handleAccordionChange(`book-${book.id}`)}
+              sx={{ boxShadow: 'none', '&:before': { display: 'none' } }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-controls={`book-${book.id}-content`}
+                id={`book-${book.id}-header`}
+                sx={{ 
+                  backgroundColor: 'background.default',
+                  borderRadius: 1
+                }}
+              >
+                <Typography>
+                  {book.chapters.length} Chapter{book.chapters.length !== 1 ? 's' : ''}
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <List disablePadding>
+                  {book.chapters.map((chapter) => (
+                    <ListItem 
+                      key={chapter.id} 
+                      disablePadding
+                      sx={{ 
+                        borderBottom: '1px solid',
+                        borderColor: 'divider'
+                      }}
+                    >
+                      <ListItemButton onClick={() => navigateToChapter(chapter)}>
+                        <ListItemIcon>
+                          <AutoStoriesIcon />
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={chapter.title} 
+                          secondary={`Chapter ${chapter.order_number}`} 
+                        />
+                        <ChevronRightIcon />
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              </AccordionDetails>
+            </Accordion>
+          </Box>
+        </Box>
+      </Card>
+    )
+  }
+
+  const renderCourseContent = (): JSX.Element | JSX.Element[] => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+          <CircularProgress />
+        </Box>
+      )
+    }
+
+    if (loadingError) {
+      return (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {loadingError}
+        </Alert>
+      )
+    }
+
+    if (!coursesWithContent || coursesWithContent.length === 0) {
+      return (
+        <Typography variant="body1" sx={{ textAlign: 'center', py: 4 }}>
+          No courses found. Please contact support if you believe this is an error.
+        </Typography>
+      )
+    }
+
+    return coursesWithContent.map((course) => (
+      <Box key={course.id} sx={{ mb: 4 }}>
+        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h5" component="h2">
+            {course.name}
+          </Typography>
+          <Chip 
+            label={`${course.progress}% Complete`} 
+            color={course.progress > 0 ? "primary" : "default"}
+            variant={course.progress > 0 ? "filled" : "outlined"}
+          />
+        </Box>
+        
+        {course.books.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            No books available for this course yet.
+          </Typography>
+        ) : (
+          <Grid container spacing={3}>
+            {course.books.map((book) => (
+              <Grid item xs={12} key={book.id}>
+                {renderBookCard(book)}
+              </Grid>
+            ))}
+          </Grid>
+        )}
+      </Box>
+    ))
+  }
+
   return (
     <>
       <Head>
@@ -137,7 +466,7 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
             </Alert>
           )}
           
-          <Box sx={{ mb: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ mb: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box>
               <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
                 Hi {user?.first_name || 'Student'}, welcome back!
@@ -171,9 +500,7 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
             </Box>
             
             <TabPanel value={tabValue} index={0}>
-              <Typography variant="body1">
-                Your course content will appear here. This includes lessons, exercises, and study materials.
-              </Typography>
+              {renderCourseContent()}
             </TabPanel>
             
             <TabPanel value={tabValue} index={1}>

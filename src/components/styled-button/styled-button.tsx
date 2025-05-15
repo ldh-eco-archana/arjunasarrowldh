@@ -11,6 +11,7 @@ interface BaseButtonProps extends Pick<ButtonProps, 'onClick' | 'type' | 'startI
   size?: 'small' | 'medium' | 'large'
   disableHoverEffect?: boolean
   disabled?: boolean
+  fullWidth?: boolean
   sx?: SxProps<Theme>
 }
 interface StyledButtonRootProps extends BaseButtonProps {
@@ -19,11 +20,12 @@ interface StyledButtonRootProps extends BaseButtonProps {
 
 const StyledButtonRoot = styled('button', {
   shouldForwardProp: (prop) =>
-    prop !== 'variant' && prop !== 'color' && prop !== 'size' && prop !== 'disableHoverEffect',
-})<StyledButtonRootProps>(({ theme, color, variant, size, disableHoverEffect, disabled }) => ({
+    prop !== 'variant' && prop !== 'color' && prop !== 'size' && prop !== 'disableHoverEffect' && prop !== 'fullWidth',
+})<StyledButtonRootProps>(({ theme, color, variant, size, disableHoverEffect, disabled, fullWidth }) => ({
   fontFamily,
   cursor: disabled ? 'not-allowed' : 'pointer',
   minWidth: 40,
+  width: fullWidth ? '100%' : 'auto',
   fontSize: 14,
   fontWeight: 500,
   lineHeight: 1.5,
@@ -43,6 +45,7 @@ const StyledButtonRoot = styled('button', {
   outline: 'none !important',
   transition: theme.transitions.create(['transform']),
   opacity: disabled ? 0.7 : 1,
+  justifyContent: fullWidth ? 'center' : 'flex-start',
 
   // hover
   '&:hover': {

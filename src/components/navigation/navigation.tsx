@@ -25,7 +25,8 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
   const isAuthenticatedUserPage = 
     router.pathname === '/dashboard' || 
     router.pathname === '/profile' || 
-    router.pathname === '/change-password';
+    router.pathname === '/change-password' ||
+    router.pathname.startsWith('/chapter/');
   
   const handleLinkClick = (): void => {
     if (isMobile && onCloseMenu) {

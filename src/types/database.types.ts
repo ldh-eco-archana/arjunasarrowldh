@@ -18,6 +18,88 @@ export interface User {
 }
 
 /**
+ * User Course junction table interface
+ */
+export interface UserCourse {
+  id: string;
+  user_id: string;
+  course_id: string;
+  created_at: string;
+  last_accessed: string | null;
+  progress: number;
+}
+
+/**
+ * Course interface
+ */
+export interface Course {
+  id: string;
+  name: string;
+  description: string;
+  board: string;
+  class: string;
+  cover_image_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Book interface
+ */
+export interface Book {
+  id: string;
+  course_id: string;
+  title: string;
+  description: string;
+  cover_image_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Chapter interface
+ */
+export interface Chapter {
+  id: string;
+  book_id: string;
+  title: string;
+  description: string;
+  order_number: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Content interface
+ */
+export interface Content {
+  id: string;
+  chapter_id: string;
+  title: string;
+  description: string | null;
+  content_type: 'pdf' | 'video';
+  file_url: string;
+  duration: number | null;
+  page_count: number | null;
+  order_number: number;
+  is_free: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * User content access tracking
+ */
+export interface UserContentAccess {
+  id: string;
+  user_id: string;
+  content_id: string;
+  first_accessed: string;
+  last_accessed: string;
+  access_count: number;
+}
+
+/**
  * Database schema type definitions
  * This helps with type checking when using Supabase client
  */
