@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { GetServerSideProps } from 'next'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
@@ -31,6 +31,9 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import OndemandVideoIcon from '@mui/icons-material/OndemandVideo'
 import Divider from '@mui/material/Divider'
 import ContentPlayer from '@/components/content/ContentPlayer'
+import Skeleton from '@mui/material/Skeleton'
+import Fade from '@mui/material/Fade'
+import Backdrop from '@mui/material/Backdrop'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -80,35 +83,66 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
   const [tabValue, setTabValue] = useState(0)
   const [contentType, setContentType] = useState<'pdf' | 'video'>('pdf')
   const [selectedContent, setSelectedContent] = useState<Content | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [isContentLoading, setIsContentLoading] = useState(false)
+  const [contentIsReady, setContentIsReady] = useState(false)
   const [loadingError, setLoadingError] = useState<string | null>(null)
+  const [initialContentSelected, setInitialContentSelected] = useState(false)
 
-  // Group content by type for easy filtering
-  const pdfContents = chapterData?.contents.filter(c => c.content_type === 'pdf') || []
-  const videoContents = chapterData?.contents.filter(c => c.content_type === 'video') || []
+  // Group content by type using useMemo to prevent unnecessary recalculations
+  const pdfContents = useMemo(() => 
+    chapterData?.contents.filter(c => c.content_type === 'pdf') || [], 
+    [chapterData]
+  )
+  
+  const videoContents = useMemo(() => 
+    chapterData?.contents.filter(c => c.content_type === 'video') || [], 
+    [chapterData]
+  )
 
   useEffect(() => {
     // Select the first content item of the current type if none selected
-    if (contentType === 'pdf' && pdfContents.length > 0 && !selectedContent) {
-      setSelectedContent(pdfContents[0])
-    } else if (contentType === 'video' && videoContents.length > 0 && !selectedContent) {
-      setSelectedContent(videoContents[0])
+    if (!initialContentSelected && ((contentType === 'pdf' && pdfContents.length > 0) || 
+        (contentType === 'video' && videoContents.length > 0))) {
+      
+      const defaultContent = contentType === 'pdf' 
+        ? pdfContents[0] 
+        : videoContents[0];
+      
+      if (defaultContent) {
+        setSelectedContent(defaultContent);
+        setInitialContentSelected(true);
+        // Start loading indicator
+        setIsContentLoading(true);
+      }
     }
-  }, [contentType, pdfContents, videoContents, selectedContent])
+  }, [contentType, pdfContents, videoContents, initialContentSelected]);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number): void => {
     setTabValue(newValue)
     setContentType(newValue === 0 ? 'pdf' : 'video')
-    setSelectedContent(null) // Reset selection when changing tabs
+    setInitialContentSelected(false)
+    setSelectedContent(null)
+    setContentIsReady(false)
   }
 
   const handleContentSelect = (content: Content): void => {
-    setSelectedContent(content)
+    if (selectedContent?.id === content.id) return;
+    
+    setContentIsReady(false);
+    setIsContentLoading(true);
+    setSelectedContent(content);
   }
 
   const handleContentError = (error: string): void => {
     console.log('Content error occurred:', error);
-    setLoadingError(error)
+    setLoadingError(error);
+    setIsContentLoading(false);
+  }
+
+  const handleContentReady = (): void => {
+    setIsContentLoading(false);
+    setContentIsReady(true);
+    updateContentProgress();
   }
 
   const updateContentProgress = async (): Promise<void> => {
@@ -123,6 +157,49 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
       console.error('Error updating progress:', err)
     }
   }
+
+  // Render content list item skeletons
+  const renderContentSkeletons = (): JSX.Element[] => {
+    return Array(3).fill(0).map((_, index) => (
+      <React.Fragment key={`skeleton-${index}`}>
+        <ListItem disablePadding>
+          <ListItemButton disabled>
+            <ListItemIcon>
+              <Skeleton variant="circular" width={24} height={24} />
+            </ListItemIcon>
+            <ListItemText 
+              primary={<Skeleton variant="text" width="80%" />} 
+              secondary={<Skeleton variant="text" width="40%" />} 
+            />
+          </ListItemButton>
+        </ListItem>
+        <Divider component="li" />
+      </React.Fragment>
+    ));
+  };
+
+  // Render content viewer skeleton
+  const renderContentViewerSkeleton = (): JSX.Element => {
+    return (
+      <Box sx={{ 
+        width: '100%', 
+        height: { xs: 250, sm: 350, md: 500 },
+        bgcolor: 'background.paper',
+        borderRadius: 1,
+        p: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 2
+      }}>
+        <CircularProgress size={50} />
+        <Typography variant="body2" color="text.secondary">
+          Loading content...
+        </Typography>
+      </Box>
+    );
+  };
 
   if (error) {
     return (
@@ -157,28 +234,82 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
           content={`Study materials for ${chapterData.title} - ${bookData.title}`}
         />
       </Head>
+      
+      <Backdrop
+        sx={{ 
+          color: '#fff', 
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+          flexDirection: 'column',
+          gap: 2 
+        }}
+        open={isContentLoading && !contentIsReady}
+      >
+        <CircularProgress color="inherit" size={60} />
+        <Typography variant="h6">
+          {contentType === 'pdf' ? 'Loading document...' : 'Loading video...'}
+        </Typography>
+      </Backdrop>
+      
       <Box sx={{ py: 6, backgroundColor: 'background.default' }}>
         <Container maxWidth="lg">
           {/* Breadcrumbs navigation */}
-          <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 3 }}>
+          <Breadcrumbs 
+            aria-label="breadcrumb" 
+            sx={{ 
+              mb: 3,
+              flexWrap: 'wrap',
+              '& .MuiBreadcrumbs-ol': {
+                flexWrap: 'wrap'
+              },
+              '& .MuiBreadcrumbs-separator': {
+                mx: { xs: 0.5, sm: 1 }
+              }
+            }}
+          >
             <Link href="/dashboard" passHref>
               <Typography
-                sx={{ display: 'flex', alignItems: 'center', color: 'text.primary', textDecoration: 'none' }}
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  color: 'text.primary', 
+                  textDecoration: 'none',
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  whiteSpace: 'nowrap'
+                }}
               >
-                <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+                <HomeIcon sx={{ mr: 0.5, fontSize: { xs: '0.875rem', sm: '1rem' } }} />
                 Dashboard
               </Typography>
             </Link>
             <Typography
-              sx={{ display: 'flex', alignItems: 'center', color: 'text.primary' }}
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                color: 'text.primary',
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                maxWidth: { xs: '100px', sm: '150px', md: '200px', lg: 'none' },
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
             >
-              <MenuBookIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+              <MenuBookIcon sx={{ mr: 0.5, fontSize: { xs: '0.875rem', sm: '1rem' } }} />
               {bookData.title}
             </Typography>
             <Typography
-              sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary' }}
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center',
+
+                color: 'text.secondary',
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                maxWidth: { xs: '100px', sm: '150px', md: '200px', lg: 'none' },
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
             >
-              <AutoStoriesIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+              <AutoStoriesIcon sx={{ mr: 0.5, fontSize: { xs: '0.875rem', sm: '1rem' } }} />
               {chapterData.title}
             </Typography>
           </Breadcrumbs>
@@ -251,7 +382,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                         <Alert severity="info">No PDF documents available</Alert>
                       ) : (
                         <List sx={{ maxHeight: { xs: '200px', sm: '300px', md: 'none' }, overflowY: 'auto' }}>
-                          {pdfContents.map((content) => (
+                          {initialContentSelected ? pdfContents.map((content) => (
                             <React.Fragment key={content.id}>
                               <ListItem disablePadding>
                                 <ListItemButton 
@@ -277,7 +408,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                               </ListItem>
                               <Divider component="li" />
                             </React.Fragment>
-                          ))}
+                          )) : renderContentSkeletons()}
                         </List>
                       )}
                     </CardContent>
@@ -292,16 +423,21 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                     </Alert>
                   )}
                   
-                  {loading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                      <CircularProgress />
-                    </Box>
+                  {!initialContentSelected ? (
+                    <Fade in={true}>
+                      {renderContentViewerSkeleton()}
+                    </Fade>
                   ) : selectedContent && selectedContent.content_type === 'pdf' ? (
-                    <ContentPlayer 
-                      content={selectedContent} 
-                      onError={handleContentError}
-                      onProgress={updateContentProgress}
-                    />
+                    <Fade in={contentIsReady} timeout={800}>
+                      <Box sx={{ visibility: contentIsReady ? 'visible' : 'hidden' }}>
+                        <ContentPlayer 
+                          content={selectedContent} 
+                          onError={handleContentError}
+                          onProgress={updateContentProgress}
+                          onReady={handleContentReady}
+                        />
+                      </Box>
+                    </Fade>
                   ) : (
                     <Paper sx={{ p: 4, textAlign: 'center' }}>
                       <Typography>Select a PDF document to view</Typography>
@@ -324,7 +460,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                         <Alert severity="info">No videos available</Alert>
                       ) : (
                         <List sx={{ maxHeight: { xs: '200px', sm: '300px', md: 'none' }, overflowY: 'auto' }}>
-                          {videoContents.map((content) => (
+                          {initialContentSelected ? videoContents.map((content) => (
                             <React.Fragment key={content.id}>
                               <ListItem disablePadding>
                                 <ListItemButton 
@@ -352,7 +488,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                               </ListItem>
                               <Divider component="li" />
                             </React.Fragment>
-                          ))}
+                          )) : renderContentSkeletons()}
                         </List>
                       )}
                     </CardContent>
@@ -367,16 +503,21 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                     </Alert>
                   )}
                   
-                  {loading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                      <CircularProgress />
-                    </Box>
+                  {!initialContentSelected ? (
+                    <Fade in={true}>
+                      {renderContentViewerSkeleton()}
+                    </Fade>
                   ) : selectedContent && selectedContent.content_type === 'video' ? (
-                    <ContentPlayer 
-                      content={selectedContent} 
-                      onError={handleContentError}
-                      onProgress={updateContentProgress}
-                    />
+                    <Fade in={contentIsReady} timeout={800}>
+                      <Box sx={{ visibility: contentIsReady ? 'visible' : 'hidden' }}>
+                        <ContentPlayer 
+                          content={selectedContent} 
+                          onError={handleContentError}
+                          onProgress={updateContentProgress}
+                          onReady={handleContentReady}
+                        />
+                      </Box>
+                    </Fade>
                   ) : (
                     <Paper sx={{ p: 4, textAlign: 'center' }}>
                       <Typography>Select a video to view</Typography>
@@ -411,10 +552,10 @@ export const getServerSideProps: GetServerSideProps<ChapterPageProps> = async (c
         get(name: string) {
           return req.cookies[name];
         },
-        set(name: string, value: string, options: Record<string, unknown>) {
+        set(name: string, value: string, _: Record<string, unknown>) {
           res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
         },
-        remove(name: string, options: Record<string, unknown>) {
+        remove(name: string, _: Record<string, unknown>) {
           res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
         },
       },

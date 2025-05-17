@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import EmailIcon from '@mui/icons-material/Email'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import { StyledButton } from '@/components/styled-button'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
@@ -247,10 +248,17 @@ const HomeContact = (): JSX.Element => {
                 </Typography>
               </Box>
               
-              <Box sx={{ display: 'flex' }}>
+              <Box sx={{ display: 'flex', mb: 2 }}>
                 <EmailIcon sx={{ color: 'primary.main', mr: 2, fontSize: 22 }} />
                 <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
                   arjunasarrowldh@gmail.com
+                </Typography>
+              </Box>
+
+              <Box sx={{ display: 'flex' }}>
+                <WhatsAppIcon sx={{ color: 'primary.main', mr: 2, fontSize: 22 }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                  +91-94179106509
                 </Typography>
               </Box>
             </Box>

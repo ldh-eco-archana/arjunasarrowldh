@@ -11,7 +11,6 @@ import { StyledButton } from '@/components/styled-button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Alert from '@mui/material/Alert'
-import { useRouter } from 'next/router'
 import InputAdornment from '@mui/material/InputAdornment'
 import LockIcon from '@mui/icons-material/Lock'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -222,10 +221,10 @@ export const getServerSideProps: GetServerSideProps<ChangePasswordProps> = async
         get(name: string) {
           return req.cookies[name];
         },
-        set(name: string, value: string, _options: Record<string, unknown>) {
+        set(name: string, value: string, _: Record<string, unknown>) {
           res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
         },
-        remove(name: string, _options: Record<string, unknown>) {
+        remove(name: string, _: Record<string, unknown>) {
           res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
         },
       },

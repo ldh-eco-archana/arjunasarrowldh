@@ -8,7 +8,6 @@ import Container from '@mui/material/Container'
 import Typography from '@mui/material/Typography'
 import Paper from '@mui/material/Paper'
 import Grid from '@mui/material/Grid'
-import { useRouter } from 'next/router'
 import { User } from '@/types/database.types'
 import Divider from '@mui/material/Divider'
 import List from '@mui/material/List'
@@ -245,10 +244,10 @@ export const getServerSideProps: GetServerSideProps<ProfileProps> = async (conte
         get(name: string) {
           return req.cookies[name];
         },
-        set(name: string, value: string, _options: Record<string, unknown>) {
+        set(name: string, value: string, _: Record<string, unknown>) {
           res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
         },
-        remove(name: string, _options: Record<string, unknown>) {
+        remove(name: string, _: Record<string, unknown>) {
           res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
         },
       },

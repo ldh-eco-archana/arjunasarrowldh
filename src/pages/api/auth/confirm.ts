@@ -18,10 +18,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           get(name: string) {
             return req.cookies[name]
           },
-          set(name: string, value: string, _options: Record<string, unknown>) {
+          set(name: string, value: string, _: Record<string, unknown>) {
             res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`)
           },
-          remove(name: string, _options: Record<string, unknown>) {
+          remove(name: string, _: Record<string, unknown>) {
             res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`)
           },
         },

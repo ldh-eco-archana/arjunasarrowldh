@@ -12,7 +12,7 @@ const Signup: NextPageWithLayout = () => {
   const router = useRouter()
 
   useEffect(() => {
-    // Redirect to payment page after a short delay
+    // Redirect to connect page after a short delay
     const redirectTimer = setTimeout(() => {
       router.push('/payment')
     }, 1500)
@@ -34,11 +34,11 @@ const Signup: NextPageWithLayout = () => {
           <Box sx={{ textAlign: 'center' }}>
             <CircularProgress size={60} sx={{ mb: 4 }} />
             <Typography component="h1" variant="h4" align="center" sx={{ mb: 2, fontWeight: 'bold' }}>
-              Redirecting to Payment Page
+              Redirecting to Connect Page
             </Typography>
             <Typography variant="body1" sx={{ mb: 4, color: 'text.secondary' }}>
-              To create your account, you need to complete the payment process first.
-              You will be redirected to our secure payment gateway...
+              To start your learning journey, we&apos;ll connect you with our expert economics teacher.
+              You&apos;ll be redirected in a moment...
             </Typography>
           </Box>
         </Container>

@@ -5,100 +5,38 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import { styled } from '@mui/material/styles'
 import { Content } from '@/types/database.types'
+import dynamic from 'next/dynamic'
 
-// Styled object for PDF viewing with controlled dimensions
-const SecurePdfObject = styled('object')`
-  width: 100%;
-  height: 70vh;
-  border: 1px solid ${props => props.theme.palette.divider};
-  border-radius: ${props => props.theme.shape.borderRadius}px;
-  max-width: 100%;
-  overflow: auto !important; /* Force scrollable */
-  position: relative; /* For overlay positioning */
-  touch-action: pan-y pan-x !important; /* Enable both vertical and horizontal touch scrolling */
-  -webkit-overflow-scrolling: touch; /* Enable momentum scrolling on iOS */
-  -webkit-user-select: none; /* Prevent selection */
-  object-fit: contain !important; /* Prevent stretching in landscape */
-  aspect-ratio: auto !important; /* Maintain aspect ratio */
-  &::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background-color: rgba(0,0,0,0.2);
-    border-radius: 4px;
-  }
-`
+// Dynamically import the PDF viewer to avoid SSR issues
+const PDFViewer = dynamic(() => import('@/components/content/PDFViewer'), {
+  ssr: false,
+  loading: () => (
+    <Box sx={{ 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center',
+      height: '70vh',
+      flexDirection: 'column',
+      gap: 2
+    }}>
+      <CircularProgress />
+      <Typography>Loading PDF viewer...</Typography>
+    </Box>
+  )
+})
 
-// Security overlay to prevent screenshots and direct interaction
-const SecurityOverlay = styled('div')`
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none !important; /* Never block PDF interaction */
-  background: transparent; /* Fully transparent */
-  z-index: 10;
-  user-select: none;
-  cursor: default;
-  touch-action: none; /* Don't handle touch actions */
-  &::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: transparent;
-    pointer-events: none;
-  }
-  /* Only stop propagation for right-clicks */
-  &::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 40px; /* Just cover the right edge */
-    height: 100%;
-    background: transparent;
-    pointer-events: auto; /* Only block right-clicks on the edge */
-    @media (max-width: 600px) {
-      width: 20px; /* Smaller touch area on mobile */
-    }
-  }
-`
-
-// PDF interaction layer to handle scroll/navigation events but block right clicks
-const InteractionLayer = styled('div')`
-  position: absolute;
-  top: 40px; /* Below header */
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 15;
-  background: transparent;
-  pointer-events: none; /* Don't block interaction with PDF */
-  touch-action: auto; /* Allow touch scrolling */
-  /* Only enable interaction for right-clicks */
-  &:contextmenu {
-    pointer-events: auto;
-  }
-`
-
-// PDF container for right-click prevention
-const SecurePdfContainer = styled('div')`
+// Container for PDF content
+const PdfContainer = styled('div')`
   position: relative;
   width: 100%;
-  user-select: none; /* Prevent text selection */
-  -webkit-touch-callout: none; /* Prevent callout to copy image on iOS */
-  -webkit-user-select: none; /* Prevent selection on Safari */
-  -khtml-user-select: none; /* Prevent selection on old browsers */
-  -moz-user-select: none; /* Prevent selection on Firefox */
-  -ms-user-select: none; /* Prevent selection on IE/Edge */
-  touch-action: pan-y pan-x; /* Enable both vertical and horizontal touch scrolling */
-  @media (orientation: landscape) {
-    max-height: 90vh; /* Prevent overflow in landscape mode */
+  height: 70vh;
+  
+  @media (max-width: 768px) {
+    height: 65vh;
+  }
+  
+  @media (orientation: landscape) and (max-width: 900px) {
+    height: 85vh;
   }
 `
 
@@ -114,13 +52,15 @@ interface ContentPlayerProps {
   content: Content
   onError?: (error: string) => void
   onProgress?: () => void
+  onReady?: () => void
 }
 
 // Component to display content (PDF or video)
 const ContentPlayer: React.FC<ContentPlayerProps> = ({ 
   content, 
   onError,
-  onProgress 
+  onProgress,
+  onReady
 }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -129,9 +69,6 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
   const [useBlobUrl, setUseBlobUrl] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const pdfContainerRef = useRef<HTMLDivElement>(null)
-  const pdfObjectRef = useRef<HTMLObjectElement>(null)
-  const interactionLayerRef = useRef<HTMLDivElement>(null)
 
   // Function to handle errors
   const handleError = useCallback((errorMsg: string): void => {
@@ -139,43 +76,6 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     setLoading(false)
     if (onError) onError(errorMsg)
   }, [onError]);
-
-  // Function to prevent printing, saving or capturing
-  const preventActions = (e: React.MouseEvent<HTMLDivElement> | KeyboardEvent): boolean => {
-    // Allow wheel events (used by touchpad) to pass through
-    if (e.type === 'wheel') return true;
-    
-    // Continue to block context menu and other unwanted events
-    e.preventDefault()
-    e.stopPropagation()
-    return false
-  }
-
-  // Initialize keyboard event listeners to prevent print via keyboard shortcuts
-  useEffect(() => {
-    if (content.content_type === 'pdf') {
-      const handleKeyDown = (e: KeyboardEvent): boolean => {
-        // Prevent Ctrl+P, Ctrl+S, Ctrl+Shift+P, F12
-        if ((e.ctrlKey && (e.key === 'p' || e.key === 's' || e.key === 'P' || e.key === 'S')) || 
-            (e.ctrlKey && e.shiftKey && (e.key === 'p' || e.key === 'P')) ||
-            e.key === 'F12' || e.key === 'PrintScreen') {
-          e.preventDefault()
-          e.stopPropagation()
-          return false
-        }
-        return true
-      }
-      
-      // Add global event listeners
-      window.addEventListener('keydown', handleKeyDown, true)
-      window.addEventListener('contextmenu', preventActions as unknown as EventListener, true)
-      
-      return () => {
-        window.removeEventListener('keydown', handleKeyDown, true)
-        window.removeEventListener('contextmenu', preventActions as unknown as EventListener, true)
-      }
-    }
-  }, [content.content_type])
 
   // Function to refresh video URL when it expires
   const refreshVideoUrl = useCallback(async (): Promise<void> => {
@@ -238,52 +138,29 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     if (content.content_type === 'video') {
       refreshVideoUrl()
     } else {
-      // PDF handling is simpler as it's served through an iframe
+      // PDF handling is simpler as it's served directly to the PDF viewer
       setLoading(false)
+      if (onReady) {
+        // Slight delay to allow PDF viewer to initialize
+        setTimeout(() => {
+          onReady()
+        }, 500)
+      }
     }
 
     // Register progress update
     if (onProgress) {
       onProgress()
     }
+  }, [content.content_type, content.id, refreshVideoUrl, onProgress, onReady])
 
-    // Clean up any refresh timers on unmount
-    return () => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current)
-      }
-      
-      // Clean up blob URL
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl);
-      }
+  // Handle video loaded
+  const handleVideoLoaded = useCallback(() => {
+    setLoading(false);
+    if (onReady) {
+      onReady();
     }
-  }, [content.file_url, content.content_type, refreshVideoUrl, onProgress, blobUrl]);
-
-  // Special handling for touchpad/wheel scrolling in PDF
-  useEffect(() => {
-    if (content.content_type === 'pdf' && pdfObjectRef.current) {
-      // Function to handle wheel events (touchpad scrolling)
-      const handleWheel = (event: WheelEvent): boolean => {
-        // Allow wheel events to pass through
-        event.stopPropagation();
-        
-        // This allows the default browser behavior for scrolling
-        return true;
-      };
-
-      // Get the PDF object DOM element
-      const pdfElement = pdfObjectRef.current;
-      
-      // Add wheel event listener with passive option for better performance
-      pdfElement.addEventListener('wheel', handleWheel, { passive: true });
-      
-      // Clean up
-      return () => {
-        pdfElement.removeEventListener('wheel', handleWheel);
-      };
-    }
-  }, [content.content_type]);
+  }, [onReady]);
 
   // Function to fetch video as blob and create object URL
   const fetchVideoAsBlob = async (url: string): Promise<boolean> => {
@@ -355,123 +232,59 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     )
   }
 
-  // Render PDF content
+  // Render PDF content with modern viewer
   if (content.content_type === 'pdf') {
     return (
-      <Box sx={{ width: '100%', overflow: 'hidden' }}>
-        <SecurePdfContainer 
-          ref={pdfContainerRef}
-          onContextMenu={preventActions}
-          onDragStart={preventActions}
-        >
-          <SecurePdfObject
-            ref={pdfObjectRef}
-            data={`${content.file_url}#toolbar=0&navpanes=0&scrollbar=1&statusbar=0&messages=0&scrolling=1&view=FitH`}
-            type="application/pdf"
-          >
-            <Typography color="error">
-              Your browser doesn&apos;t support embedded PDFs. Please contact support for assistance.
-            </Typography>
-          </SecurePdfObject>
-          
-          <InteractionLayer 
-            ref={interactionLayerRef}
-            onContextMenu={preventActions} 
-            onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
-            onMouseDown={(e: React.MouseEvent<HTMLDivElement>) => e.button === 2 && e.preventDefault()}
-          />
-          
-          <SecurityOverlay />
-          
-          <Box 
-            sx={{ 
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: '40px',
-              background: theme => theme.palette.background.paper,
-              borderBottom: theme => `1px solid ${theme.palette.divider}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 20,
-            }}
-          >
-            <Typography variant="subtitle2">
-              {content.title} - For educational use only
-            </Typography>
-          </Box>
-        </SecurePdfContainer>
-        
-        <Box sx={{ 
-          mt: 2, 
-          display: 'flex', 
-          flexDirection: { xs: 'column', sm: 'row' },
-          justifyContent: 'space-between',
-          alignItems: { xs: 'flex-start', sm: 'center' },
-          gap: 1
-        }}>
-          <Typography variant="caption" color="text.secondary">
-            {content.page_count} {content.page_count === 1 ? 'page' : 'pages'}
-          </Typography>
-          <Typography variant="caption" fontWeight="bold" color="error.main">
-            For educational use only. No printing or download allowed.
-          </Typography>
-        </Box>
-      </Box>
+      <PdfContainer>
+        <PDFViewer fileUrl={content.file_url} title={content.title || "PDF Document"} />
+      </PdfContainer>
     )
   }
 
   // Render video content
   if (content.content_type === 'video') {
     return (
-      <Box sx={{ width: '100%' }}>
-        <SecureVideoElement
-          ref={videoRef}
-          src={useBlobUrl ? blobUrl || '' : videoUrl}
-          controls
-          autoPlay={false}
-          controlsList="nodownload"
-          preload="auto"
-          crossOrigin="anonymous"
-          onContextMenu={(e: React.MouseEvent<HTMLVideoElement>) => e.preventDefault()}
-          onError={() => {
-            console.error('[ContentPlayer] Video error event');
-            
-            // Log more detailed error information
-            if (videoRef.current) {
-              const video = videoRef.current;
-              console.error('[ContentPlayer] Video error details:', {
-                error: video.error ? {
-                  code: video.error.code,
-                  message: video.error.message
-                } : 'No error object',
-                networkState: video.networkState,
-                readyState: video.readyState
-              });
-            }
-            
-            handleVideoError();
-          }}
-          playsInline
-        />
+      <Box 
+        sx={{ width: '100%', position: 'relative' }}
+        onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
+      >
+        {loading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+            <CircularProgress />
+          </Box>
+        )}
         
-        <Box sx={{ 
-          mt: 2, 
-          display: 'flex', 
-          flexDirection: { xs: 'column', sm: 'row' },
-          justifyContent: 'space-between',
-          alignItems: { xs: 'flex-start', sm: 'center' },
-          gap: 1
-        }}>
-          <Typography variant="caption" color="text.secondary">
-            {content.duration ? `Duration: ${Math.floor(content.duration / 60)}m ${content.duration % 60}s` : ''}
-          </Typography>
-          <Typography variant="caption" fontWeight="bold" color="error.main">
-            For educational use only. This video cannot be downloaded.
-          </Typography>
-        </Box>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        
+        {useBlobUrl && blobUrl ? (
+          <SecureVideoElement
+            ref={videoRef}
+            src={blobUrl}
+            controls
+            playsInline
+            controlsList="nodownload noremoteplayback"
+            disablePictureInPicture
+            onError={handleVideoError}
+            onLoadedData={handleVideoLoaded}
+            onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
+          />
+        ) : (
+          <SecureVideoElement
+            ref={videoRef}
+            src={videoUrl}
+            controls
+            playsInline
+            controlsList="nodownload noremoteplayback"
+            disablePictureInPicture
+            onError={handleVideoError}
+            onLoadedData={handleVideoLoaded}
+            onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
+          />
+        )}
       </Box>
     )
   }

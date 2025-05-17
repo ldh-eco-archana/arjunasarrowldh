@@ -20,6 +20,9 @@ import Image from 'next/image'
 import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
 import { createClient } from '@/utils/supabase/client'
+import Backdrop from '@mui/material/Backdrop'
+import { GetServerSideProps } from 'next'
+import { createServerClient } from '@supabase/ssr'
 
 const Login: NextPageWithLayout = () => {
   const router = useRouter()
@@ -27,7 +30,7 @@ const Login: NextPageWithLayout = () => {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -46,15 +49,15 @@ const Login: NextPageWithLayout = () => {
       }
 
       if (data?.user) {
-        setSuccess(true)
+        // Immediately indicate that we're redirecting
+        setRedirecting(true)
         
-        // Redirect to dashboard after successful login
+        // Redirect to dashboard right away
         router.push('/dashboard')
       }
     } catch (error: unknown) {
       const err = error as Error
       setError(err.message || 'Invalid credentials')
-    } finally {
       setLoading(false)
     }
   }
@@ -68,6 +71,23 @@ const Login: NextPageWithLayout = () => {
           content="Login to access your economics e-learning account. Comprehensive digital learning platform for economics students."
         />
       </Head>
+      
+      {/* Fullscreen redirect backdrop */}
+      <Backdrop
+        sx={{ 
+          color: '#fff', 
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+          flexDirection: 'column',
+          gap: 2 
+        }}
+        open={redirecting}
+      >
+        <CircularProgress color="inherit" size={60} />
+        <Typography variant="h6">
+          Preparing your dashboard...
+        </Typography>
+      </Backdrop>
+      
       <Box 
         sx={{ 
           py: 10, 
@@ -132,12 +152,6 @@ const Login: NextPageWithLayout = () => {
                     </Alert>
                   )}
                   
-                  {success && (
-                    <Alert severity="success" sx={{ mb: 3 }}>
-                      Login successful! Redirecting to dashboard...
-                    </Alert>
-                  )}
-                  
                   <Box component="form" onSubmit={handleSubmit}>
                     <TextField
                       margin="normal"
@@ -150,7 +164,7 @@ const Login: NextPageWithLayout = () => {
                       autoFocus
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading || success}
+                      disabled={loading || redirecting}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -172,7 +186,7 @@ const Login: NextPageWithLayout = () => {
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading || success}
+                      disabled={loading || redirecting}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -189,7 +203,7 @@ const Login: NextPageWithLayout = () => {
                       color="primary"
                       size="large"
                       sx={{ width: '100%', mt: 3, mb: 2 }}
-                      disabled={loading || success}
+                      disabled={loading || redirecting}
                     >
                       {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
                     </StyledButton>
@@ -233,6 +247,55 @@ const Login: NextPageWithLayout = () => {
   )
 }
 
-Login.getLayout = (page) => <MainLayout>{page}</MainLayout>
+// Server-side authentication check - similar to the dashboard page implementation
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { req, res } = context;
+  
+  // Create server-side Supabase client
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies[name];
+        },
+        set(name: string, value: string, _: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
+        },
+        remove(name: string, _: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+        },
+      },
+    }
+  );
+
+  try {
+    // Check for authenticated user with getUser()
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      // User is already authenticated, redirect to dashboard
+      return {
+        redirect: {
+          destination: '/dashboard',
+          permanent: false,
+        },
+      };
+    }
+
+    // User is not authenticated, continue to login page
+    return {
+      props: {},
+    };
+  } catch (error) {
+    console.error('Server-side auth error:', error);
+    return {
+      props: {},
+    };
+  }
+};
+
+Login.getLayout = (page) => <MainLayout isAuthenticated={false}>{page}</MainLayout>
 
 export default Login 

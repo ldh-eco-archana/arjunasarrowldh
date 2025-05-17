@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent, useEffect } from 'react'
+import React, { useState, ChangeEvent } from 'react'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
 import Head from 'next/head'
@@ -9,421 +9,316 @@ import { StyledButton } from '@/components/styled-button'
 import Grid from '@mui/material/Grid'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
-import CurrencyRupeeIcon from '@mui/icons-material/CurrencyRupee'
-import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import TextField from '@mui/material/TextField'
-import FormControl from '@mui/material/FormControl'
-import FormControlLabel from '@mui/material/FormControlLabel'
-import RadioGroup from '@mui/material/RadioGroup'
-import Radio from '@mui/material/Radio'
-import InputLabel from '@mui/material/InputLabel'
-import MenuItem from '@mui/material/MenuItem'
-import Select, { SelectChangeEvent } from '@mui/material/Select'
-import { countryCodes } from '@/data/countryCodes'
-import { validatePhoneNumber, getPhoneNumberPlaceholder } from '@/utils/phoneValidation'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
+import SendIcon from '@mui/icons-material/Send'
+import SchoolIcon from '@mui/icons-material/School'
+import LaptopIcon from '@mui/icons-material/Laptop'
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn'
+import Avatar from '@mui/material/Avatar'
+import Paper from '@mui/material/Paper'
+import Fade from '@mui/material/Fade'
+import Zoom from '@mui/material/Zoom'
+import PersonIcon from '@mui/icons-material/Person'
+import CallIcon from '@mui/icons-material/Call'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
+import Button from '@mui/material/Button'
 
 const Payment: NextPageWithLayout = () => {
-  const [formStep, setFormStep] = useState(0)
+  const [tabValue, setTabValue] = useState(0)
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    countryCode: '+91',
+    name: '',
     mobile: '',
-    password: '',
-    confirmPassword: '',
-    schoolName: '',
-    city: '',
-    currentClass: '',
-    board: 'CBSE'
+    message: ''
   })
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number): void => {
+    setTabValue(newValue)
+  }
   
-  const [errors, setErrors] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    mobile: ''
-  })
-  
-  // Update placeholder for mobile number based on selected country code
-  const [mobilePlaceholder, setMobilePlaceholder] = useState(getPhoneNumberPlaceholder('+91'))
-  
-  useEffect(() => {
-    // Set the placeholder based on selected country code
-    setMobilePlaceholder(getPhoneNumberPlaceholder(formData.countryCode))
-    
-    // Validate mobile number when country code changes
-    if (formData.mobile) {
-      const { isValid, errorMessage } = validatePhoneNumber(formData.countryCode, formData.mobile)
-      setErrors(prev => ({ ...prev, mobile: isValid ? '' : errorMessage }))
-    }
-  }, [formData.countryCode, formData.mobile])
-  
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent): void => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
       [name]: value
     }))
-    
-    // For mobile number field, validate against the country code
-    if (name === 'mobile') {
-      const { isValid, errorMessage } = validatePhoneNumber(formData.countryCode, value)
-      setErrors(prev => ({ ...prev, mobile: isValid ? '' : errorMessage }))
-    }
   }
   
-  useEffect(() => {
-    // Validate email
-    if (formData.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(formData.email)) {
-        setErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }))
-      } else {
-        setErrors(prev => ({ ...prev, email: '' }))
-      }
-    }
+  const formatWhatsAppMessage = (): string => {
+    // Create a formatted message for WhatsApp
+    const baseMessage = `Hello Mrs. Archana! I'm interested in economics coaching.`
     
-    // Validate password length
-    if (formData.password) {
-      if (formData.password.length < 6) {
-        setErrors(prev => ({ ...prev, password: 'Password must be at least 6 characters' }))
-      } else {
-        setErrors(prev => ({ ...prev, password: '' }))
-      }
-    }
+    // Add name if provided
+    const nameSection = formData.name ? `\n\nMy name is ${formData.name}.` : ''
     
-    // Check if passwords match
-    if (formData.confirmPassword) {
-      if (formData.password !== formData.confirmPassword) {
-        setErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }))
-      } else {
-        setErrors(prev => ({ ...prev, confirmPassword: '' }))
-      }
-    }
-  }, [formData.email, formData.password, formData.confirmPassword])
-  
-  const handleNextStep = (): void => {
-    // Check if there are any validation errors
-    if (errors.email || errors.password || errors.confirmPassword || errors.mobile) {
-      return
-    }
+    // Add custom message if provided
+    const customMessage = formData.message ? `\n\n${formData.message}` : ''
     
-    // Check if all required fields are filled
-    const requiredFields = ['firstName', 'lastName', 'email', 'mobile', 'password', 'confirmPassword', 'schoolName', 'city', 'currentClass']
-    const isValid = requiredFields.every(field => Boolean(formData[field as keyof typeof formData]))
+    // Combine all sections
+    const message = `${baseMessage}${nameSection}${customMessage}\n\nPlease provide me more information about your coaching services. Thank you!`;
     
-    if (isValid) {
-      setFormStep(1)
-    } else {
-      alert('Please fill in all required fields')
-    }
+    return encodeURIComponent(message);
   }
   
-  const handlePayment = (): void => {
-    // In a real implementation, this would connect to a payment gateway
-    // For demonstration, we'll just redirect to a success page or external payment URL
-    
-    // Redirect to payment gateway
-    window.location.href = 'https://example.com/payment' // Replace with actual payment gateway URL
+  const handleWhatsAppConnect = (): void => {
+    const phoneNumber = '9417910650'; // Replace with actual teacher's WhatsApp number
+    const formattedMessage = formatWhatsAppMessage();
+    window.open(`https://wa.me/${phoneNumber}?text=${formattedMessage}`, '_blank');
+  }
+
+  const handleDirectCall = (): void => {
+    window.location.href = 'tel:+919417910650';
   }
 
   return (
     <>
       <Head>
-        <title>Payment | Economics E-Learning Portal</title>
+        <title>Connect with Teacher | Economics E-Learning Portal</title>
         <meta 
           name="description" 
-          content="Complete your payment to access our economics e-learning platform. Secure payment gateway for course subscription."
+          content="Connect directly with our experienced economics teacher. Get personalized guidance for your economics education journey."
         />
       </Head>
       <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
         <Container maxWidth="lg">
-          <Typography component="h1" variant="h3" align="center" sx={{ mb: 6, fontWeight: 'bold' }}>
-            Complete Your Course Subscription
-          </Typography>
+          <Fade in={true} timeout={1000}>
+            <Typography component="h1" variant="h3" align="center" sx={{ mb: 2, fontWeight: 'bold' }}>
+              Connect with Our Expert Economics Teacher
+            </Typography>
+          </Fade>
+          <Fade in={true} timeout={1500}>
+            <Typography variant="h6" align="center" sx={{ mb: 6, color: 'text.secondary' }}>
+              Fill in your details and connect directly with Mrs. Archana, our experienced economics faculty
+            </Typography>
+          </Fade>
           
           <Grid container spacing={4} justifyContent="center">
             <Grid item xs={12} md={6} lg={5}>
-              <Card sx={{ borderRadius: 3, boxShadow: 5, height: '100%' }}>
-                <CardContent sx={{ p: 4 }}>
-                  <Typography component="h2" variant="h5" sx={{ mb: 3, fontWeight: 'bold' }}>
-                    Annual Economics Course Subscription
-                  </Typography>
-                  
-                  <Box sx={{ my: 3, display: 'flex', alignItems: 'center' }}>
-                    <CurrencyRupeeIcon color="primary" />
-                    <Typography variant="h3" component="span" fontWeight="bold" sx={{ ml: 1 }}>
-                      10,000
-                    </Typography>
-                    <Typography variant="subtitle1" component="span" sx={{ ml: 1, color: 'text.secondary' }}>
-                      / year
-                    </Typography>
-                  </Box>
-
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                    <AccessTimeIcon color="primary" />
-                    <Typography variant="body1" sx={{ ml: 1 }}>
-                      Valid for 12 months from activation
-                    </Typography>
-                  </Box>
-
-                  <Box sx={{ mb: 4 }}>
-                    {[
-                      'Complete access to video lectures 24/7',
-                      'Concise and elaborative PDF study materials',
-                      'Practice tests and question papers',
-                      'Expert doubt resolution support',
-                      'Access to live webinars and workshops',
-                      'Mobile and desktop access',
-                    ].map((benefit, index) => (
-                      <Box key={index} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
-                        <Typography variant="body1">{benefit}</Typography>
+              <Zoom in={true} timeout={1000}>
+                <Card sx={{ borderRadius: 3, boxShadow: 5, height: '100%', position: 'relative', overflow: 'visible' }}>
+                  <CardContent sx={{ p: 4 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                      <Avatar sx={{ bgcolor: 'primary.main', width: 60, height: 60, mr: 2 }}>
+                        <PersonIcon sx={{ fontSize: 40 }} />
+                      </Avatar>
+                      <Box>
+                        <Typography component="h2" variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                          Mrs. Archana
+                        </Typography>
+                        <Typography variant="subtitle1" color="text.secondary">
+                          Economics Expert • 15+ Years Experience
+                        </Typography>
                       </Box>
-                    ))}
-                  </Box>
-                </CardContent>
-              </Card>
+                    </Box>
+                    
+                    <Typography variant="body1" sx={{ mb: 4 }}>
+                      Mrs. Archana has helped hundreds of students excel in their economics examinations with her unique 
+                      teaching methodology that simplifies complex concepts and makes learning enjoyable.
+                    </Typography>
+                    
+                    <Paper elevation={3} sx={{ p: 3, mb: 4, borderRadius: 2, backgroundColor: 'background.paper' }}>
+                      <Box sx={{ display: 'flex', mb: 2 }}>
+                        <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                          <SchoolIcon />
+                        </Avatar>
+                        <Box>
+                          <Typography variant="h6" fontWeight="bold">Experienced Educator</Typography>
+                          <Typography variant="body2">With over 15 years of teaching experience and exceptional student results</Typography>
+                        </Box>
+                      </Box>
+                    </Paper>
+                    
+                    <Paper elevation={3} sx={{ p: 3, mb: 4, borderRadius: 2, backgroundColor: 'background.paper' }}>
+                      <Box sx={{ display: 'flex', mb: 2 }}>
+                        <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                          <LaptopIcon />
+                        </Avatar>
+                        <Box>
+                          <Typography variant="h6" fontWeight="bold">Personalized Attention</Typography>
+                          <Typography variant="body2">Customized study plans based on your specific needs and learning pace</Typography>
+                        </Box>
+                      </Box>
+                    </Paper>
+                    
+                    <Paper elevation={3} sx={{ p: 3, mb: 4, borderRadius: 2, backgroundColor: 'background.paper' }}>
+                      <Box sx={{ display: 'flex', mb: 2 }}>
+                        <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                          <AssignmentTurnedInIcon />
+                        </Avatar>
+                        <Box>
+                          <Typography variant="h6" fontWeight="bold">Proven Results</Typography>
+                          <Typography variant="body2">Join the ranks of students who have achieved excellent grades in economics</Typography>
+                        </Box>
+                      </Box>
+                    </Paper>
+
+                    <Box sx={{ mt: 4 }}>
+                      {[
+                        'Complete access to video lectures 24/7',
+                        'Concise and elaborative PDF study materials',
+                        'Practice tests and question papers',
+                        'Expert doubt resolution support',
+                        'Access to live webinars and workshops',
+                        'Mobile and desktop access',
+                      ].map((benefit, index) => (
+                        <Box key={index} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
+                          <Typography variant="body1">{benefit}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                    
+                    <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Button 
+                        variant="contained" 
+                        color="success" 
+                        size="large" 
+                        startIcon={<WhatsAppIcon />}
+                        onClick={handleWhatsAppConnect}
+                        sx={{ py: 1.5 }}
+                      >
+                        Message Directly on WhatsApp
+                      </Button>
+                      
+                      <Button 
+                        variant="outlined" 
+                        color="primary" 
+                        size="large" 
+                        startIcon={<CallIcon />}
+                        onClick={handleDirectCall}
+                        sx={{ py: 1.5 }}
+                      >
+                        Call Mrs. Archana: +91-9417910650
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Zoom>
             </Grid>
             
-            <Grid item xs={12} md={6} lg={6}>
-              <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
-                <CardContent sx={{ p: { xs: 3, sm: 4, md: 5 } }}>
-                  {formStep === 0 ? (
-                    <>
-                      <Typography component="h2" variant="h5" sx={{ mb: 4, fontWeight: 'bold' }}>
-                        Your Details
-                      </Typography>
-                      
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="First Name"
-                            name="firstName"
-                            value={formData.firstName}
-                            onChange={handleChange}
-                            margin="normal"
-                            required
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="Last Name"
-                            name="lastName"
-                            value={formData.lastName}
-                            onChange={handleChange}
-                            margin="normal"
-                            required
-                          />
-                        </Grid>
-                        <Grid item xs={12}>
-                          <TextField
-                            fullWidth
-                            label="Email"
-                            name="email"
-                            type="email"
-                            value={formData.email}
-                            onChange={handleChange}
-                            margin="normal"
-                            required
-                            helperText={errors.email || "Will be used for login"}
-                            error={!!errors.email}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={5} md={4}>
-                          <FormControl fullWidth margin="normal" required>
-                            <InputLabel>Country Code</InputLabel>
-                            <Select
-                              name="countryCode"
-                              value={formData.countryCode}
-                              label="Country Code"
-                              onChange={handleChange}
-                              MenuProps={{ 
-                                PaperProps: { 
-                                  sx: { maxHeight: 300 } 
-                                } 
-                              }}
-                              renderValue={(selected) => {
-                                const selectedCountry = countryCodes.find(option => option.value === selected);
-                                return (
-                                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                    <Typography sx={{ mr: 1 }}>{selectedCountry?.flag}</Typography>
-                                    <Typography>{selectedCountry?.value}</Typography>
-                                  </Box>
-                                );
-                              }}
-                            >
-                              {countryCodes.map(option => (
-                                <MenuItem key={option.value} value={option.value}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                    <Typography sx={{ mr: 1, fontSize: '1.2rem' }}>{option.flag}</Typography>
-                                    <Typography>{option.label}</Typography>
-                                  </Box>
-                                </MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                        <Grid item xs={12} sm={7} md={8}>
-                          <TextField
-                            fullWidth
-                            label="Mobile Number"
-                            name="mobile"
-                            value={formData.mobile}
-                            onChange={handleChange}
-                            margin="normal"
-                            required
-                            type="tel"
-                            placeholder={mobilePlaceholder}
-                            error={!!errors.mobile}
-                            helperText={errors.mobile || mobilePlaceholder}
-                            inputProps={{
-                              inputMode: 'numeric',
-                              pattern: '[0-9]*'
-                            }}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="Password"
-                            name="password"
-                            type="password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            margin="normal"
-                            required
-                            helperText={errors.password || "Minimum 6 characters"}
-                            error={!!errors.password}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="Confirm Password"
-                            name="confirmPassword"
-                            type="password"
-                            value={formData.confirmPassword}
-                            onChange={handleChange}
-                            margin="normal"
-                            required
-                            helperText={errors.confirmPassword || ""}
-                            error={!!errors.confirmPassword}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="School Name"
-                            name="schoolName"
-                            value={formData.schoolName}
-                            onChange={handleChange}
-                            margin="normal"
-                            required
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="City"
-                            name="city"
-                            value={formData.city}
-                            onChange={handleChange}
-                            margin="normal"
-                            required
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <FormControl fullWidth margin="normal" required>
-                            <InputLabel>Class</InputLabel>
-                            <Select
-                              name="currentClass"
-                              value={formData.currentClass}
-                              label="Class"
-                              onChange={handleChange}
-                            >
-                              {[11, 12].map((cls) => (
-                                <MenuItem key={cls} value={cls}>Class {cls}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <FormControl component="fieldset" margin="normal" required>
-                            <Typography variant="body2" sx={{ mb: 1 }}>Board</Typography>
-                            <RadioGroup
-                              row
-                              name="board"
-                              value={formData.board}
-                              onChange={handleChange}
-                            >
-                              <FormControlLabel value="CBSE" control={<Radio />} label="CBSE" />
-                              <FormControlLabel value="ICSE" control={<Radio />} label="ICSE" />
-                            </RadioGroup>
-                          </FormControl>
-                        </Grid>
-                      </Grid>
-                      
-                      <Box sx={{ mt: 4 }}>
-                        <StyledButton
-                          onClick={handleNextStep}
-                          variant="contained"
-                          color="primary"
-                          size="large"
-                          sx={{ width: '100%', mb: 2 }}
-                        >
-                          Continue to Payment
-                        </StyledButton>
-                      </Box>
-                    </>
-                  ) : (
-                    <>
-                      <Typography component="h2" variant="h5" sx={{ mb: 4, fontWeight: 'bold' }}>
-                        Payment Details
-                      </Typography>
-                      
-                      <Box sx={{ mb: 4 }}>
-                        <Typography variant="body1" sx={{ mb: 1, fontWeight: 'bold' }}>
-                          What happens next:
+            <Grid item xs={12} md={6} lg={7}>
+              <Zoom in={true} timeout={1200}>
+                <Card sx={{ borderRadius: 3, boxShadow: 5, position: 'relative' }}>
+                  <CardContent sx={{ p: { xs: 3, sm: 4, md: 5 } }}>
+                    <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+                      <Tabs value={tabValue} onChange={handleTabChange} aria-label="contact options">
+                        <Tab label="Quick Contact" />
+                        <Tab label="Send a Message" />
+                      </Tabs>
+                    </Box>
+                    
+                    {tabValue === 0 && (
+                      <Box>
+                        <Typography variant="h6" color="primary" sx={{ mb: 3 }}>
+                          Connect with Mrs. Archana in seconds!
                         </Typography>
-                        <Typography variant="body2" sx={{ mb: 2 }}>
-                          1. Click on &quot;Proceed to Payment&quot; button below
-                        </Typography>
-                        <Typography variant="body2" sx={{ mb: 2 }}>
-                          2. Complete the payment on our secure payment gateway
-                        </Typography>
-                        <Typography variant="body2" sx={{ mb: 2 }}>
-                          3. After successful payment, you&apos;ll receive your login credentials via email
-                        </Typography>
-                        <Typography variant="body2">
-                          4. Use these credentials to access your course materials instantly
-                        </Typography>
-                      </Box>
-                      
-                      <Box sx={{ mt: 4 }}>
-                        <StyledButton
-                          onClick={handlePayment}
-                          variant="contained"
-                          color="primary"
-                          size="large"
-                          sx={{ width: '100%', mb: 2 }}
-                        >
-                          Proceed to Payment
-                        </StyledButton>
                         
-                        <Typography variant="caption" color="text.secondary" align="center" sx={{ display: 'block', mt: 2 }}>
-                          By proceeding, you agree to our Terms of Service and Privacy Policy.
-                          All payments are secured with industry-standard encryption.
-                        </Typography>
+                        <Box sx={{ textAlign: 'center', py: 3 }}>
+                          <Typography variant="body1" sx={{ mb: 4, maxWidth: '500px', mx: 'auto' }}>
+                            Ready to excel in Economics? Our simple, two-click process gets you directly connected with Mrs. Archana, no lengthy forms needed!
+                          </Typography>
+                          
+                          <Box sx={{ display: 'flex', flexDirection: 'column', maxWidth: '400px', mx: 'auto', gap: 3 }}>
+                            <StyledButton
+                              onClick={handleWhatsAppConnect}
+                              variant="contained"
+                              color="primary"
+                              size="large"
+                              sx={{ py: 2, fontSize: '1.1rem' }}
+                              startIcon={<WhatsAppIcon sx={{ fontSize: '1.5rem' }} />}
+                            >
+                              Chat on WhatsApp
+                            </StyledButton>
+                            
+                            <Button
+                              variant="outlined"
+                              color="primary"
+                              size="large"
+                              sx={{ py: 2, fontSize: '1.1rem' }}
+                              onClick={handleDirectCall}
+                              startIcon={<CallIcon sx={{ fontSize: '1.5rem' }} />}
+                            >
+                              Call +91-9417910650
+                            </Button>
+                          </Box>
+                          
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 4 }}>
+                            Mrs. Archana responds to most messages within 1-2 hours
+                          </Typography>
+                        </Box>
                       </Box>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+                    )}
+                    
+                    {tabValue === 1 && (
+                      <Box>
+                        <Typography variant="h6" color="primary" sx={{ mb: 3 }}>
+                          Send a Message to Mrs. Archana
+                        </Typography>
+                        
+                        <Grid container spacing={2}>
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Your Name (Optional)"
+                              name="name"
+                              value={formData.name}
+                              onChange={handleChange}
+                              margin="normal"
+                              variant="outlined"
+                              placeholder="How should Mrs. Archana address you?"
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Your Message (Optional)"
+                              name="message"
+                              value={formData.message}
+                              onChange={handleChange}
+                              margin="normal"
+                              variant="outlined"
+                              multiline
+                              rows={4}
+                              placeholder="Any specific topics or questions you're interested in?"
+                            />
+                          </Grid>
+                        </Grid>
+                        
+                        <Box sx={{ mt: 4, textAlign: 'center' }}>
+                          <StyledButton
+                            onClick={handleWhatsAppConnect}
+                            variant="contained"
+                            color="primary"
+                            size="large"
+                            sx={{ py: 1.5, px: 4, fontSize: '1.1rem' }}
+                            endIcon={<SendIcon />}
+                          >
+                            Send via WhatsApp
+                          </StyledButton>
+                          
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                            No account creation required. Connect instantly!
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                    
+                    <Box sx={{ mt: 6, p: 3, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 1 }}>
+                      <Typography variant="subtitle2" fontWeight="bold" color="primary">
+                        Why Students Love Learning with Mrs. Archana:
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontStyle: 'italic', mt: 1 }}>
+                        &quot;Mrs. Archana&apos;s teaching approach made complex economic concepts so much easier to understand. I scored 98/100 in my finals!&quot; - Vipul
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontStyle: 'italic', mt: 1 }}>
+                        &quot;The personalized attention and study materials were exactly what I needed. Highly recommended!&quot; - Nidhi
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Zoom>
             </Grid>
           </Grid>
         </Container>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { GetServerSideProps } from 'next'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
@@ -9,7 +9,7 @@ import Typography from '@mui/material/Typography'
 import { useRouter } from 'next/router'
 import Button from '@mui/material/Button'
 import LogoutIcon from '@mui/icons-material/Logout'
-import { User, Course, Book, Chapter, UserCourse } from '@/types/database.types'
+import { User, Course, Book, Chapter } from '@/types/database.types'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Paper from '@mui/material/Paper'
@@ -34,6 +34,9 @@ import ListItem from '@mui/material/ListItem'
 import ListItemIcon from '@mui/material/ListItemIcon'
 import ListItemText from '@mui/material/ListItemText'
 import ListItemButton from '@mui/material/ListItemButton'
+import Skeleton from '@mui/material/Skeleton'
+import Fade from '@mui/material/Fade'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -87,43 +90,21 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
   const [tabValue, setTabValue] = useState(0)
   const [sessionStatus, setSessionStatus] = useState<string | null>(null)
   const [coursesWithContent, setCoursesWithContent] = useState<CourseWithBooks[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loadingCourses, setLoadingCourses] = useState(true)
+  const [loadingBooks, setLoadingBooks] = useState(false)
+  const [loadingChapters, setLoadingChapters] = useState(false)
   const [expanded, setExpanded] = useState<string | false>(false)
   const [loadingError, setLoadingError] = useState<string | null>(null)
 
-  useEffect(() => {
-    // Verify session on client-side as well
-    const checkSession = async (): Promise<void> => {
-      const supabase = createClientBrowser()
-      const { data, error } = await supabase.auth.getSession()
-      
-      if (error || !data.session) {
-        setSessionStatus('No valid session found. Redirecting...')
-        setTimeout(() => {
-          router.push('/login')
-        }, 2000)
-      } else {
-        setSessionStatus('Session valid')
-      }
-    }
-    
-    checkSession()
-  }, [router])
-
-  useEffect(() => {
-    if (user?.id && tabValue === 0) {
-      fetchCourseContent(user.id)
-    }
-  }, [user, tabValue])
-
-  const fetchCourseContent = async (userId: string): Promise<void> => {
-    setLoading(true)
+  // Split the fetching into multiple steps for progressive loading
+  const fetchCourseStructure = useCallback(async (userId: string): Promise<void> => {
+    setLoadingCourses(true)
     setLoadingError(null)
     
     try {
       const supabase = createClientBrowser()
       
-      // Fetch user enrolled courses
+      // Step 1: Fetch user enrolled courses first
       const { data: userCoursesData, error: userCoursesError } = await supabase
         .from('user_courses')
         .select(`
@@ -148,7 +129,7 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
       
       if (!userCoursesData || userCoursesData.length === 0) {
         setCoursesWithContent([])
-        setLoading(false)
+        setLoadingCourses(false)
         return
       }
       
@@ -184,7 +165,53 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
         };
       }).filter(Boolean) as CourseWithBooks[];
       
-      // Fetch books for all courses
+      // Show courses immediately
+      setCoursesWithContent(courses);
+      setLoadingCourses(false);
+      
+      // Step 2: Fetch books in the background
+      setLoadingBooks(true);
+      fetchBooks(supabase, courseIds, courses);
+      
+    } catch (error) {
+      console.error('Error fetching course content:', error)
+      setLoadingError((error as Error).message)
+      setLoadingCourses(false)
+    }
+  }, []);
+
+  const checkSession = async (): Promise<void> => {
+    // Verify session on client-side as well
+    const supabase = createClientBrowser()
+    const { data, error } = await supabase.auth.getSession()
+    
+    if (error || !data.session) {
+      setSessionStatus('No valid session found. Redirecting...')
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
+    } else {
+      setSessionStatus('Session valid')
+    }
+  }
+
+  useEffect(() => {
+    checkSession()
+  }, [router])
+
+  useEffect(() => {
+    if (user?.id && tabValue === 0) {
+      fetchCourseStructure(user.id)
+    }
+  }, [user, tabValue, fetchCourseStructure])
+
+  // Separate function to fetch books
+  const fetchBooks = async (
+    supabase: SupabaseClient, 
+    courseIds: string[], 
+    courses: CourseWithBooks[]
+  ): Promise<void> => {
+    try {
       const { data: booksData, error: booksError } = await supabase
         .from('books')
         .select('*')
@@ -196,56 +223,75 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
       
       // Create a map of course_id to books
       const courseToBooks = new Map<string, BookWithChapters[]>()
-      booksData.forEach(book => {
+      booksData.forEach((book: Book) => {
         if (!courseToBooks.has(book.course_id)) {
           courseToBooks.set(book.course_id, [])
         }
         courseToBooks.get(book.course_id)?.push({...book, chapters: []})
       })
       
-      // Populate books in courses
-      courses.forEach(course => {
+      // Update the courses with books
+      const updatedCourses = [...courses];
+      updatedCourses.forEach(course => {
         course.books = courseToBooks.get(course.id) || []
       })
       
+      setCoursesWithContent(updatedCourses)
+      setLoadingBooks(false)
+      
       // Extract book IDs
-      const bookIds = booksData.map(book => book.id)
+      const bookIds = booksData.map((book: Book) => book.id)
       
       if (bookIds.length > 0) {
-        // Fetch chapters for all books
-        const { data: chaptersData, error: chaptersError } = await supabase
-          .from('chapters')
-          .select('*')
-          .in('book_id', bookIds)
-          .order('order_number', { ascending: true })
-        
-        if (chaptersError) {
-          throw new Error(`Failed to fetch chapters: ${chaptersError.message}`)
-        }
-        
-        // Create a map of book_id to chapters
-        const bookToChapters = new Map<string, Chapter[]>()
-        chaptersData.forEach(chapter => {
-          if (!bookToChapters.has(chapter.book_id)) {
-            bookToChapters.set(chapter.book_id, [])
-          }
-          bookToChapters.get(chapter.book_id)?.push(chapter)
-        })
-        
-        // Populate chapters in books
-        courses.forEach(course => {
-          course.books.forEach(book => {
-            book.chapters = bookToChapters.get(book.id) || []
-          })
-        })
+        // Step 3: Fetch chapters in the background
+        setLoadingChapters(true)
+        fetchChapters(supabase, bookIds, updatedCourses)
+      }
+    } catch (error) {
+      console.error('Error fetching books:', error)
+      setLoadingBooks(false)
+    }
+  }
+  
+  // Separate function to fetch chapters
+  const fetchChapters = async (
+    supabase: SupabaseClient, 
+    bookIds: string[], 
+    courses: CourseWithBooks[]
+  ): Promise<void> => {
+    try {
+      const { data: chaptersData, error: chaptersError } = await supabase
+        .from('chapters')
+        .select('*')
+        .in('book_id', bookIds)
+        .order('order_number', { ascending: true })
+      
+      if (chaptersError) {
+        throw new Error(`Failed to fetch chapters: ${chaptersError.message}`)
       }
       
-      setCoursesWithContent(courses)
+      // Create a map of book_id to chapters
+      const bookToChapters = new Map<string, Chapter[]>()
+      chaptersData.forEach((chapter: Chapter) => {
+        if (!bookToChapters.has(chapter.book_id)) {
+          bookToChapters.set(chapter.book_id, [])
+        }
+        bookToChapters.get(chapter.book_id)?.push(chapter)
+      })
+      
+      // Update books with chapters
+      const finalCourses = [...courses]
+      finalCourses.forEach(course => {
+        course.books.forEach(book => {
+          book.chapters = bookToChapters.get(book.id) || []
+        })
+      })
+      
+      setCoursesWithContent(finalCourses)
     } catch (error) {
-      console.error('Error fetching course content:', error)
-      setLoadingError((error as Error).message)
+      console.error('Error fetching chapters:', error)
     } finally {
-      setLoading(false)
+      setLoadingChapters(false)
     }
   }
 
@@ -298,107 +344,164 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
     )
   }
 
-  const renderBookCard = (book: BookWithChapters): JSX.Element => {
+  const renderBookSkeleton = (): JSX.Element => {
     return (
-      <Card 
-        sx={{ 
-          display: 'flex', 
-          flexDirection: { xs: 'column', sm: 'row' },
-          height: '100%',
-          mb: 2
-        }}
-      >
-        {book.cover_image_url ? (
-          <CardMedia
-            component="img"
-            sx={{ 
-              width: { xs: '100%', sm: 140 },
-              height: { xs: 200, sm: 'auto' },
-              objectFit: 'cover'
-            }}
-            image={book.cover_image_url}
-            alt={book.title}
-          />
-        ) : (
-          <Box 
-            sx={{ 
-              width: { xs: '100%', sm: 140 },
-              height: { xs: 200, sm: 'auto' },
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              bgcolor: 'primary.light',
-              color: 'primary.contrastText'
-            }}
-          >
-            <MenuBookIcon sx={{ fontSize: 60 }} />
-          </Box>
-        )}
-        <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-          <CardContent sx={{ flex: '1 0 auto' }}>
-            <Typography component="div" variant="h5">
-              {book.title}
-            </Typography>
-            <Typography variant="subtitle1" color="text.secondary" component="div">
-              {book.description}
-            </Typography>
-          </CardContent>
-          <Box sx={{ p: 2 }}>
-            <Accordion 
-              expanded={expanded === `book-${book.id}`} 
-              onChange={handleAccordionChange(`book-${book.id}`)}
-              sx={{ boxShadow: 'none', '&:before': { display: 'none' } }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                aria-controls={`book-${book.id}-content`}
-                id={`book-${book.id}-header`}
-                sx={{ 
-                  backgroundColor: 'background.default',
-                  borderRadius: 1
-                }}
-              >
-                <Typography>
-                  {book.chapters.length} Chapter{book.chapters.length !== 1 ? 's' : ''}
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <List disablePadding>
-                  {book.chapters.map((chapter) => (
-                    <ListItem 
-                      key={chapter.id} 
-                      disablePadding
-                      sx={{ 
-                        borderBottom: '1px solid',
-                        borderColor: 'divider'
-                      }}
-                    >
-                      <ListItemButton onClick={() => navigateToChapter(chapter)}>
-                        <ListItemIcon>
-                          <AutoStoriesIcon />
-                        </ListItemIcon>
-                        <ListItemText 
-                          primary={chapter.title} 
-                          secondary={`Chapter ${chapter.order_number}`} 
-                        />
-                        <ChevronRightIcon />
-                      </ListItemButton>
-                    </ListItem>
-                  ))}
-                </List>
-              </AccordionDetails>
-            </Accordion>
+      <Card sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, height: '100%', mb: 2 }}>
+        <Skeleton variant="rectangular" sx={{ width: { xs: '100%', sm: 140 }, height: { xs: 200, sm: 'auto' } }} />
+        <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, p: 2 }}>
+          <Skeleton variant="text" sx={{ fontSize: '2rem', width: '80%', mb: 1 }} />
+          <Skeleton variant="text" sx={{ fontSize: '1rem', width: '90%' }} />
+          <Skeleton variant="text" sx={{ fontSize: '1rem', width: '70%' }} />
+          <Box sx={{ mt: 2 }}>
+            <Skeleton variant="rounded" height={40} />
           </Box>
         </Box>
       </Card>
+    );
+  };
+
+  const renderBookCard = (book: BookWithChapters): JSX.Element => {
+    return (
+      <Fade in={true} timeout={500}>
+        <Card 
+          sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            height: '100%',
+            mb: 2
+          }}
+        >
+          {book.cover_image_url ? (
+            <CardMedia
+              component="img"
+              sx={{ 
+                width: { xs: '100%', sm: 140 },
+                height: { xs: 200, sm: 'auto' },
+                objectFit: 'cover'
+              }}
+              image={book.cover_image_url}
+              alt={book.title}
+            />
+          ) : (
+            <Box 
+              sx={{ 
+                width: { xs: '100%', sm: 140 },
+                height: { xs: 200, sm: 'auto' },
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'primary.light',
+                color: 'primary.contrastText'
+              }}
+            >
+              <MenuBookIcon sx={{ fontSize: 60 }} />
+            </Box>
+          )}
+          <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+            <CardContent sx={{ flex: '1 0 auto' }}>
+              <Typography component="div" variant="h5">
+                {book.title}
+              </Typography>
+              <Typography variant="subtitle1" color="text.secondary" component="div">
+                {book.description}
+              </Typography>
+            </CardContent>
+            <Box sx={{ p: 2 }}>
+              <Accordion 
+                expanded={expanded === `book-${book.id}`} 
+                onChange={handleAccordionChange(`book-${book.id}`)}
+                sx={{ boxShadow: 'none', '&:before': { display: 'none' } }}
+              >
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  aria-controls={`book-${book.id}-content`}
+                  id={`book-${book.id}-header`}
+                  sx={{ 
+                    backgroundColor: 'background.default',
+                    borderRadius: 1
+                  }}
+                >
+                  <Typography>
+                    {loadingChapters ? 
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <CircularProgress size={16} sx={{ mr: 1 }} /> Loading chapters...
+                      </Box> 
+                      : 
+                      `${book.chapters.length} Chapter${book.chapters.length !== 1 ? 's' : ''}`
+                    }
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  {loadingChapters ? (
+                    <List disablePadding>
+                      {[1, 2, 3].map((i) => (
+                        <ListItem 
+                          key={i} 
+                          disablePadding
+                          sx={{ 
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                            py: 1
+                          }}
+                        >
+                          <Skeleton variant="rectangular" height={50} width="100%" />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <List disablePadding>
+                      {book.chapters.map((chapter) => (
+                        <ListItem 
+                          key={chapter.id} 
+                          disablePadding
+                          sx={{ 
+                            borderBottom: '1px solid',
+                            borderColor: 'divider'
+                          }}
+                        >
+                          <ListItemButton onClick={() => navigateToChapter(chapter)}>
+                            <ListItemIcon>
+                              <AutoStoriesIcon />
+                            </ListItemIcon>
+                            <ListItemText 
+                              primary={chapter.title} 
+                              secondary={`Chapter ${chapter.order_number}`} 
+                            />
+                            <ChevronRightIcon />
+                          </ListItemButton>
+                        </ListItem>
+                      ))}
+                    </List>
+                  )}
+                </AccordionDetails>
+              </Accordion>
+            </Box>
+          </Box>
+        </Card>
+      </Fade>
     )
   }
 
   const renderCourseContent = (): JSX.Element | JSX.Element[] => {
-    if (loading) {
+    if (loadingCourses) {
       return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
+        <Box sx={{ mt: 4 }}>
+          {[1, 2].map((i) => (
+            <Box key={i} sx={{ mb: 4 }}>
+              <Box sx={{ mb: 2 }}>
+                <Skeleton variant="text" sx={{ fontSize: '2rem', width: '60%' }} />
+                <Skeleton variant="text" sx={{ fontSize: '1rem', width: '30%' }} />
+              </Box>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  {renderBookSkeleton()}
+                </Grid>
+                <Grid item xs={12}>
+                  {renderBookSkeleton()}
+                </Grid>
+              </Grid>
+            </Box>
+          ))}
         </Box>
       )
     }
@@ -420,32 +523,43 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
     }
 
     return coursesWithContent.map((course) => (
-      <Box key={course.id} sx={{ mb: 4 }}>
-        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="h5" component="h2">
-            {course.name}
-          </Typography>
-          <Chip 
-            label={`${course.progress}% Complete`} 
-            color={course.progress > 0 ? "primary" : "default"}
-            variant={course.progress > 0 ? "filled" : "outlined"}
-          />
-        </Box>
-        
-        {course.books.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            No books available for this course yet.
-          </Typography>
-        ) : (
-          <Grid container spacing={3}>
-            {course.books.map((book) => (
-              <Grid item xs={12} key={book.id}>
-                {renderBookCard(book)}
+      <Fade in={true} key={course.id} timeout={300}>
+        <Box sx={{ mb: 4 }}>
+          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h5" component="h2">
+              {course.name}
+            </Typography>
+            <Chip 
+              label={`${course.progress}% Complete`} 
+              color={course.progress > 0 ? "primary" : "default"}
+              variant={course.progress > 0 ? "filled" : "outlined"}
+            />
+          </Box>
+          
+          {loadingBooks ? (
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                {renderBookSkeleton()}
               </Grid>
-            ))}
-          </Grid>
-        )}
-      </Box>
+              <Grid item xs={12}>
+                {renderBookSkeleton()}
+              </Grid>
+            </Grid>
+          ) : course.books.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              No books available for this course yet.
+            </Typography>
+          ) : (
+            <Grid container spacing={3}>
+              {course.books.map((book) => (
+                <Grid item xs={12} key={book.id}>
+                  {renderBookCard(book)}
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </Box>
+      </Fade>
     ))
   }
 
@@ -527,10 +641,10 @@ export const getServerSideProps: GetServerSideProps<DashboardProps> = async (con
         get(name: string) {
           return req.cookies[name];
         },
-        set(name: string, value: string, _options: Record<string, unknown>) {
+        set(name: string, value: string, _: Record<string, unknown>) {
           res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
         },
-        remove(name: string, _options: Record<string, unknown>) {
+        remove(name: string, _: Record<string, unknown>) {
           res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
         },
       },
@@ -582,6 +696,6 @@ export const getServerSideProps: GetServerSideProps<DashboardProps> = async (con
   }
 };
 
-Dashboard.getLayout = (page) => <MainLayout>{page}</MainLayout>
+Dashboard.getLayout = (page) => <MainLayout isAuthenticated={true}>{page}</MainLayout>
 
 export default Dashboard 

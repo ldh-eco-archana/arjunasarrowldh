@@ -1,40 +1,54 @@
-import type { Alumni } from '@/interfaces/mentor'
+import type { BatchData } from '@/interfaces/mentor'
 
-export const data: Array<Alumni> = [
+export const batchData: Array<BatchData> = [
   {
     id: 1,
-    photo: '/images/mentors/christian-buehner-DItYlc26zVI-unsplash.jpg',
-    name: 'Riya Sharma',
-    category: 'Scored 96% in Economics (CBSE)',
-    description:
-      'The chapter-wise notes and personalized guidance helped me understand complex macroeconomics concepts easily. The practice tests were exactly like board exam questions. Now pursuing Economics Honours at Delhi University.',
-    batch: 'Batch of 2022'
+    year: '2024-25',
+    students: ['Saanchi', 'Stuti', 'Himanshu', 'Jatin', 'Jilna', 'Amrit', 'Kakul']
   },
   {
     id: 2,
-    photo: '/images/mentors/jonas-kakaroto-KIPqvvTOC1s-unsplash.jpg',
-    name: 'Arjun Mehta',
-    category: 'Scored 94% in Economics (ICSE)',
-    description:
-      'The teaching methodology made Indian Economy and Statistics so approachable. I was struggling with graphs and data interpretation, but the video lectures cleared all my doubts. Highly recommend for any economics student aiming for top scores.',
-    batch: 'Batch of 2020'
+    year: '2023-24',
+    students: ['Tushar', 'Karthik', 'Prabal', 'Jasleen', 'Suhani', 'Angel']
   },
   {
     id: 3,
-    photo: '/images/mentors/noah-buscher-8A7fD6Y5VF8-unsplash.jpg',
-    name: 'Priya Patel',
-    category: '98% in Economics (CBSE)',
-    description:
-      'The online portal was a game-changer during COVID. I could access all materials 24/7 and the mock tests helped build my confidence. The microeconomics section was particularly well-structured. Now studying at St. Stephen\'s College.',
-    batch: 'Batch of 2021'
+    year: '2022-23',
+    students: ['Nidhi', 'Anshika', 'Anjali', 'Mehak', 'Angel', 'Dhiraj', 'Loveleen']
   },
   {
     id: 4,
-    photo: '/images/mentors/philip-martin-5aGUyCW_PJw-unsplash.jpg',
-    name: 'Vikram Singh',
-    category: 'Scored 95% in Economics (CBSE)',
-    description:
-      'Coming from a Hindi medium school, I was worried about economics terminology. The bilingual approach and simplified explanations helped me excel. The faculty was always available to clear doubts. Now pursuing B.Com at SRCC.',
-    batch: 'Batch of 2019'
+    year: '2021-22',
+    students: ['Mridul', 'Juhi', 'Snehdeep', 'Khushi', 'Mehakdeep', 'Deepu', 'Niranjan']
   },
+  {
+    id: 5,
+    year: '2020-21',
+    students: ['Diya', 'Jyoti', 'Urvashi', 'Mridul', 'Tushar', 'Harmanpreet', 'Rajan']
+  },
+  {
+    id: 6,
+    year: '2019-20',
+    students: ['Vipul', 'Vijay', 'Himanshi', 'Anchal', 'Gursevak', 'Gurshan']
+  },
+  {
+    id: 7,
+    year: '2018-19',
+    students: ['Vivek', 'Tanya', 'Kunal', 'Simran', 'Raj', 'Anya', 'Vihaan']
+  },
+  {
+    id: 8,
+    year: '2017-18',
+    students: ['Anil', 'Sanya', 'Karthik', 'Meghna', 'Rishabh', 'Leela', 'Manish']
+  },
+  {
+    id: 9,
+    year: '2016-17',
+    students: ['Prateek', 'Shreya', 'Ajay', 'Nandini', 'Dhruv', 'Sonali', 'Vinay']
+  },
+  {
+    id: 10,
+    year: '2015-16',
+    students: ['Shikha', 'Alok', 'Anita', 'Vikas', 'Jaya', 'Prakash', 'Komal']
+  }
 ] 

@@ -114,46 +114,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
     
-    // Load the PDF and update user-specific watermark
+    // Load the PDF and add watermark
     const pdfDoc = await PDFDocument.load(await fileData.arrayBuffer());
     const pages = pdfDoc.getPages();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     
     // Create user watermark text
     const userWatermark = `${userData.first_name} ${userData.last_name} (${userData.email})`;
     
-    // Replace placeholder watermark with user data on each page
+    // Add mobile-friendly diagonal watermark to each page
     for (const page of pages) {
       const { width, height } = page.getSize();
       
-      // Add a subtle watermark in the footer
-      page.drawText(userWatermark, {
-        x: width / 2 - 150, // Center approximately
-        y: 15,
-        size: 8,
-        font,
-        color: rgb(0.5, 0.5, 0.5), // Light gray
-      });
+      // Calculate optimal watermark size based on page dimensions
+      // This makes the watermark properly sized on both desktop and mobile views
+      const pageArea = width * height;
+      const baseSize = Math.sqrt(pageArea) / 30; // Scale watermark size based on page area
+      const watermarkSize = Math.max(Math.min(baseSize, 20), 14); // Between 14 and 20
       
-      // Add a single diagonal watermark
+      // Calculate watermark width to correctly center the text
+      const textWidth = watermarkSize * userWatermark.length * 0.5;
+      
+      // Add a more prominent diagonal watermark in center
       page.drawText(userWatermark, {
-        x: width / 2 - 120,
+        x: width / 2 - textWidth / 3, // Center the text more accurately
         y: height / 2,
-        size: 12,
+        size: watermarkSize,
         font,
-        color: rgb(0.85, 0.85, 0.85), // Very light gray
-        opacity: 0.3,
+        color: rgb(0.82, 0.82, 0.82), // Light gray
+        opacity: 0.6,
         rotate: degrees(45),
       });
       
-      // Add vertical-text watermark on the right side
+      // Add a second, perpendicular watermark for better coverage
+      // This ensures that in any view orientation, at least one watermark is clearly visible
       page.drawText(userWatermark, {
-        x: width - 30,
+        x: width / 2 + textWidth / 6,
         y: height / 2,
-        size: 10,
+        size: watermarkSize,
         font,
-        color: rgb(0.6, 0.6, 0.6),
-        rotate: degrees(90),
+        color: rgb(0.82, 0.82, 0.82), // Light gray
+        opacity: 0.6,
+        rotate: degrees(-45),
       });
     }
     
@@ -170,12 +172,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Return the watermarked PDF with appropriate headers
     res.setHeader('Content-Type', 'application/pdf');
-    
-    // Keep simple inline disposition with filename
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     
-    res.setHeader('Cache-Control', 'no-store, max-age=0');
-    res.setHeader('Pragma', 'no-cache');
+    // Set cache headers for improved performance
+    res.setHeader('Cache-Control', 'private, max-age=600'); // 10-minute cache
     
     // Add CORS headers for embedding
     res.setHeader('Access-Control-Allow-Origin', '*');

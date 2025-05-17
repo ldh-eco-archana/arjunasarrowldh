@@ -14,3 +14,9 @@ export interface Alumni extends Omit<User, 'professional'> {
   category: string
   batch: string
 }
+
+export interface BatchData {
+  id: number
+  year: string
+  students: string[]
+}

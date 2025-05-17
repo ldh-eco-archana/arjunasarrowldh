@@ -5,12 +5,13 @@ import { Header } from '@/components/header'
 
 interface Props {
   children: ReactNode
+  isAuthenticated?: boolean
 }
 
-const MainLayout: FC<Props> = ({ children }) => {
+const MainLayout: FC<Props> = ({ children, isAuthenticated = false }) => {
   return (
     <Box component="main">
-      <Header />
+      <Header isAuthenticated={isAuthenticated} />
       {children}
       <Footer />
     </Box>

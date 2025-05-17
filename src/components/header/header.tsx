@@ -8,7 +8,11 @@ import { Navigation } from '@/components/navigation'
 import { useTheme } from '@mui/material/styles'
 import { Menu, Close } from '@mui/icons-material'
 
-const Header: FC = () => {
+interface HeaderProps {
+  isAuthenticated?: boolean
+}
+
+const Header: FC<HeaderProps> = ({ isAuthenticated = false }) => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
   const [isScrolled, setIsScrolled] = useState<boolean>(false)
   const { breakpoints } = useTheme()
@@ -46,7 +50,16 @@ const Header: FC = () => {
     >
       <Container sx={{ py: { xs: 2, md: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Logo />
+          <Box
+            sx={{ 
+              cursor: 'pointer',
+              textDecoration: 'none',
+              color: 'inherit'
+            }}
+            onClick={() => window.location.href = isAuthenticated ? '/dashboard' : '/'}
+          >
+            <Logo />
+          </Box>
           <Box sx={{ ml: 'auto', display: { xs: 'inline-flex', md: 'none' } }}>
             <IconButton onClick={() => setVisibleMenu(!visibleMenu)}>
               <Menu />
