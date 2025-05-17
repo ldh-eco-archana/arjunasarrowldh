@@ -63,13 +63,13 @@ const Payment: NextPageWithLayout = () => {
   }
   
   const handleWhatsAppConnect = (): void => {
-    const phoneNumber = '9417910650'; // Replace with actual teacher's WhatsApp number
+    const phoneNumber = '+919417916509'; // Replace with actual teacher's WhatsApp number
     const formattedMessage = formatWhatsAppMessage();
     window.open(`https://wa.me/${phoneNumber}?text=${formattedMessage}`, '_blank');
   }
 
   const handleDirectCall = (): void => {
-    window.location.href = 'tel:+919417910650';
+    window.location.href = 'tel:+919417916509';
   }
 
   return (
@@ -190,7 +190,7 @@ const Payment: NextPageWithLayout = () => {
                         onClick={handleDirectCall}
                         sx={{ py: 1.5 }}
                       >
-                        Call Mrs. Archana: +91-9417910650
+                        Call Mrs. Archana: +91-9417916509
                       </Button>
                     </Box>
                   </CardContent>
@@ -240,7 +240,7 @@ const Payment: NextPageWithLayout = () => {
                               onClick={handleDirectCall}
                               startIcon={<CallIcon sx={{ fontSize: '1.5rem' }} />}
                             >
-                              Call +91-9417910650
+                              Call +91-9417916509
                             </Button>
                           </Box>
                           
