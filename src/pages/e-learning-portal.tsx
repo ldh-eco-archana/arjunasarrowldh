@@ -7,7 +7,6 @@ import { useRouter } from 'next/router'
 
 const DynamicELearningHero = dynamic(() => import('../components/e-learning/hero'))
 const DynamicELearningFeatures = dynamic(() => import('../components/e-learning/features'))
-const DynamicELearningPricing = dynamic(() => import('../components/e-learning/pricing'))
 
 // Preload login page to reduce redirect time
 const LoginPage = dynamic(() => import('./login'), { ssr: true })
@@ -35,7 +34,6 @@ const ELearningPortal: NextPageWithLayout = () => {
       </Head>
       <DynamicELearningHero />
       <DynamicELearningFeatures />
-      <DynamicELearningPricing />
     </>
   )
 }
