@@ -98,7 +98,7 @@ const Dashboard: NextPageWithLayout<DashboardProps> = () => {
 
   // Get the current user on the client side
   useEffect(() => {
-    async function loadUser() {
+    async function loadUser(): Promise<void> {
       try {
         const supabase = createClientBrowser()
         const { data: { user: authUser } } = await supabase.auth.getUser()
