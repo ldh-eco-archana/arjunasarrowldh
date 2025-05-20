@@ -21,6 +21,8 @@ import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
 import { createClient } from '@/utils/supabase/client'
 import Backdrop from '@mui/material/Backdrop'
+import { GetServerSideProps } from 'next'
+import { createServerClient } from '@supabase/ssr'
 
 const Login: NextPageWithLayout = () => {
   const router = useRouter()
@@ -244,6 +246,55 @@ const Login: NextPageWithLayout = () => {
     </>
   )
 }
+
+// Server-side authentication check - similar to the dashboard page implementation
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { req, res } = context;
+  
+  // Create server-side Supabase client
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies[name];
+        },
+        set(name: string, value: string, _: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
+        },
+        remove(name: string, _: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+        },
+      },
+    }
+  );
+
+  try {
+    // Check for authenticated user with getUser()
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      // User is already authenticated, redirect to dashboard
+      return {
+        redirect: {
+          destination: '/dashboard',
+          permanent: false,
+        },
+      };
+    }
+
+    // User is not authenticated, continue to login page
+    return {
+      props: {},
+    };
+  } catch (error) {
+    console.error('Server-side auth error:', error);
+    return {
+      props: {},
+    };
+  }
+};
 
 Login.getLayout = (page) => <MainLayout isAuthenticated={false}>{page}</MainLayout>
 

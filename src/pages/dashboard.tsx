@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { GetServerSideProps } from 'next'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
 import Head from 'next/head'
@@ -13,6 +14,7 @@ import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Paper from '@mui/material/Paper'
 import { createClient as createClientBrowser } from '@/utils/supabase/client'
+import { createServerClient } from '@supabase/ssr'
 import Alert from '@mui/material/Alert'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -43,7 +45,7 @@ interface TabPanelProps {
 }
 
 interface DashboardProps {
-  user?: User | null
+  user: User | null
   error?: string
 }
 
@@ -83,51 +85,16 @@ function a11yProps(index: number): { id: string; 'aria-controls': string } {
   }
 }
 
-const Dashboard: NextPageWithLayout<DashboardProps> = () => {
+const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
   const router = useRouter()
   const [tabValue, setTabValue] = useState(0)
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [sessionStatus, setSessionStatus] = useState<string | null>(null)
   const [coursesWithContent, setCoursesWithContent] = useState<CourseWithBooks[]>([])
   const [loadingCourses, setLoadingCourses] = useState(true)
   const [loadingBooks, setLoadingBooks] = useState(false)
   const [loadingChapters, setLoadingChapters] = useState(false)
   const [expanded, setExpanded] = useState<string | false>(false)
   const [loadingError, setLoadingError] = useState<string | null>(null)
-
-  // Get the current user on the client side
-  useEffect(() => {
-    async function loadUser() {
-      try {
-        const supabase = createClientBrowser()
-        const { data: { user: authUser } } = await supabase.auth.getUser()
-        
-        if (authUser) {
-          // Fetch user profile from database
-          const { data: profile, error: profileError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', authUser.id)
-            .single();
-            
-          if (profileError) {
-            setError('Failed to load user profile')
-          } else {
-            setUser(profile)
-          }
-        }
-        
-        setLoading(false)
-      } catch (error) {
-        console.error('Error loading user:', error)
-        setError('Error loading user data')
-        setLoading(false)
-      }
-    }
-    
-    loadUser()
-  }, [])
 
   // Split the fetching into multiple steps for progressive loading
   const fetchCourseStructure = useCallback(async (userId: string): Promise<void> => {
@@ -212,6 +179,25 @@ const Dashboard: NextPageWithLayout<DashboardProps> = () => {
       setLoadingCourses(false)
     }
   }, []);
+
+  const checkSession = async (): Promise<void> => {
+    // Verify session on client-side as well
+    const supabase = createClientBrowser()
+    const { data, error } = await supabase.auth.getSession()
+    
+    if (error || !data.session) {
+      setSessionStatus('No valid session found. Redirecting...')
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
+    } else {
+      setSessionStatus('Session valid')
+    }
+  }
+
+  useEffect(() => {
+    checkSession()
+  }, [router])
 
   useEffect(() => {
     if (user?.id && tabValue === 0) {
@@ -346,24 +332,16 @@ const Dashboard: NextPageWithLayout<DashboardProps> = () => {
     return `Class ${user.current_class}${user.current_class === '12' ? 'th' : ''} - ${user.board}`
   }
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   if (error) {
     return (
-      <Box sx={{ py: 6, backgroundColor: 'background.default' }}>
+      <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
         <Container maxWidth="lg">
-          <Alert severity="error" sx={{ mb: 3 }}>
+          <Typography variant="h4" component="h1" align="center" color="error">
             {error}
-          </Alert>
+          </Typography>
         </Container>
       </Box>
-    );
+    )
   }
 
   const renderBookSkeleton = (): JSX.Element => {
@@ -596,6 +574,12 @@ const Dashboard: NextPageWithLayout<DashboardProps> = () => {
       </Head>
       <Box sx={{ py: 6, backgroundColor: 'background.default' }}>
         <Container maxWidth="lg">
+          {sessionStatus === 'No valid session found. Redirecting...' && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              {sessionStatus}
+            </Alert>
+          )}
+          
           <Box sx={{ mb: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box>
               <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
@@ -644,6 +628,73 @@ const Dashboard: NextPageWithLayout<DashboardProps> = () => {
     </>
   )
 }
+
+export const getServerSideProps: GetServerSideProps<DashboardProps> = async (context) => {
+  const { req, res } = context;
+  
+  // Create server-side Supabase client
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies[name];
+        },
+        set(name: string, value: string, _: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
+        },
+        remove(name: string, _: Record<string, unknown>) {
+          res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+        },
+      },
+    }
+  );
+
+  try {
+    // Check for authenticated user with getUser() for improved security
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        redirect: {
+          destination: '/login',
+          permanent: false,
+        },
+      };
+    }
+
+    // Fetch user profile from database
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) {
+      return {
+        props: {
+          user: null,
+          error: 'Failed to load user profile',
+        },
+      };
+    }
+
+    return {
+      props: {
+        user: profile,
+      },
+    };
+  } catch (error) {
+    console.error('Server-side error:', error);
+    return {
+      redirect: {
+        destination: '/login',
+        permanent: false,
+      }
+    };
+  }
+};
 
 Dashboard.getLayout = (page) => <MainLayout isAuthenticated={true}>{page}</MainLayout>
 

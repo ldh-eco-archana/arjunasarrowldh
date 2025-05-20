@@ -1,24 +1,13 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import dynamic from 'next/dynamic'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
 import Head from 'next/head'
-import { useRouter } from 'next/router'
 
 const DynamicELearningHero = dynamic(() => import('../components/e-learning/hero'))
 const DynamicELearningFeatures = dynamic(() => import('../components/e-learning/features'))
 
-// Preload login page to reduce redirect time
-const LoginPage = dynamic(() => import('./login'), { ssr: true })
-
 const ELearningPortal: NextPageWithLayout = () => {
-  const router = useRouter()
-  
-  // Preload the login page on mount
-  useEffect(() => {
-    router.prefetch('/login')
-  }, [router])
-  
   return (
     <>
       <Head>

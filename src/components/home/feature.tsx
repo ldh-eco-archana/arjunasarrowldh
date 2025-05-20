@@ -128,6 +128,7 @@ const HomeFeature: FC = () => {
                       size={85}
                     />
                     <CircularProgress
+                      disableShrink
                       thickness={2}
                       variant="determinate"
                       value={90}

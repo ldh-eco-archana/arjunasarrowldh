@@ -1,4 +1,4 @@
-import React, { FC, useEffect } from 'react'
+import React, { FC } from 'react'
 import Box from '@mui/material/Box'
 import Grid from '@mui/material/Grid'
 import Container from '@mui/material/Container'
@@ -6,16 +6,8 @@ import Typography from '@mui/material/Typography'
 import { StyledButton } from '@/components/styled-button'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/router'
 
 const ELearningHero: FC = () => {
-  const router = useRouter()
-  
-  // Preload the login page
-  useEffect(() => {
-    router.prefetch('/login')
-  }, [router])
-  
   return (
     <Box id="hero" sx={{ backgroundColor: 'background.paper', position: 'relative', pt: 4, pb: { xs: 8, md: 10 } }}>
       <Container maxWidth="lg">
@@ -119,7 +111,7 @@ const ELearningHero: FC = () => {
                   </Link>
                 </Box>
                 <Box sx={{ width: { xs: 'fit-content', sm: 'auto' } }}>
-                  <Link href="/login" passHref prefetch>
+                  <Link href="/login" passHref>
                     <StyledButton 
                       color="primary" 
                       size="large" 
