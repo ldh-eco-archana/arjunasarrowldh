@@ -16,7 +16,7 @@ import LockIcon from '@mui/icons-material/Lock'
 import CircularProgress from '@mui/material/CircularProgress'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
 import { createClient } from '@/utils/supabase/client'
-import { createServerClient } from '@supabase/ssr'
+import { getSafeUser } from '@/utils/supabase/server'
 
 interface ChangePasswordProps {
   email: string;
@@ -210,32 +210,11 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
 }
 
 export const getServerSideProps: GetServerSideProps<ChangePasswordProps> = async (context) => {
-  const { req, res } = context;
-  
-  // Create server-side Supabase client
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-    {
-      cookies: {
-        get(name: string) {
-          return req.cookies[name];
-        },
-        set(name: string, value: string, _: Record<string, unknown>) {
-          res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
-        },
-        remove(name: string, _: Record<string, unknown>) {
-          res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
-        },
-      },
-    }
-  );
-
   try {
-    // Check for authenticated user with getUser() for improved security
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Fast authentication check using JWT verification
+    const { data: safeUser, error: authError } = await getSafeUser(context);
 
-    if (authError || !user) {
+    if (authError || !safeUser) {
       return {
         redirect: {
           destination: '/login',
@@ -246,7 +225,7 @@ export const getServerSideProps: GetServerSideProps<ChangePasswordProps> = async
 
     return {
       props: {
-        email: user.email || '',
+        email: safeUser.email || '',
       },
     };
   } catch (error) {

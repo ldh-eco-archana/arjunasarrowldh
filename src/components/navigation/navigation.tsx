@@ -6,7 +6,7 @@ import { useRouter } from 'next/router'
 import { navigations } from './navigation.data'
 import LogoutIcon from '@mui/icons-material/Logout'
 import Button from '@mui/material/Button'
-import { createClient } from '@/utils/supabase/client'
+import { useSignOut } from '@/hooks/useSignOut'
 
 interface NavigationProps {
   isMobile?: boolean;
@@ -15,6 +15,7 @@ interface NavigationProps {
 
 const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
   const router = useRouter();
+  const { signOut } = useSignOut();
   const isELearningRelatedPage = 
     router.pathname === '/e-learning-portal' || 
     router.pathname === '/login' || 
@@ -35,20 +36,12 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
   };
 
   const handleSignOut = async (): Promise<void> => {
-    try {
-      // Close menu if on mobile
-      if (isMobile && onCloseMenu) {
-        onCloseMenu();
-      }
-      
-      // Use the new Supabase client
-      const supabase = createClient()
-      await supabase.auth.signOut()
-      
-      router.push('/login')
-    } catch (error) {
-      console.error('Error signing out:', error)
+    // Close menu if on mobile
+    if (isMobile && onCloseMenu) {
+      onCloseMenu();
     }
+    
+    await signOut();
   }
 
   const navBoxStyles = {

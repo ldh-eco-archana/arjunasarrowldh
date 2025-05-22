@@ -37,6 +37,7 @@ import ListItemButton from '@mui/material/ListItemButton'
 import Skeleton from '@mui/material/Skeleton'
 import Fade from '@mui/material/Fade'
 import { SupabaseClient } from '@supabase/supabase-js'
+import { useSignOut } from '@/hooks/useSignOut'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -87,6 +88,7 @@ function a11yProps(index: number): { id: string; 'aria-controls': string } {
 
 const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
   const router = useRouter()
+  const { signOut } = useSignOut()
   const [tabValue, setTabValue] = useState(0)
   const [sessionStatus, setSessionStatus] = useState<string | null>(null)
   const [coursesWithContent, setCoursesWithContent] = useState<CourseWithBooks[]>([])
@@ -296,19 +298,7 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
   }
 
   const handleSignOut = async (): Promise<void> => {
-    try {
-      const supabase = createClientBrowser()
-      const { error } = await supabase.auth.signOut()
-      
-      if (error) {
-        console.error('Error signing out:', error)
-        return
-      }
-      
-      router.push('/login')
-    } catch (error) {
-      console.error('Error signing out:', error)
-    }
+    await signOut()
   }
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number): void => {

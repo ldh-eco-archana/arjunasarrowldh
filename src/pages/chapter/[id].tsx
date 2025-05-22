@@ -17,7 +17,7 @@ import HomeIcon from '@mui/icons-material/Home'
 import MenuBookIcon from '@mui/icons-material/MenuBook'
 import AutoStoriesIcon from '@mui/icons-material/AutoStories'
 import { createClient as createClientBrowser } from '@/utils/supabase/client'
-import { createServerClient } from '@supabase/ssr'
+import { getSafeUser } from '@/utils/supabase/server'
 import { Chapter, Book, Content, User } from '@/types/database.types'
 import Grid from '@mui/material/Grid'
 import Card from '@mui/material/Card'
@@ -534,7 +534,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
 }
 
 export const getServerSideProps: GetServerSideProps<ChapterPageProps> = async (context) => {
-  const { req, res, params } = context;
+  const { params } = context;
   const chapterId = params?.id as string;
   
   if (!chapterId) {
@@ -542,31 +542,12 @@ export const getServerSideProps: GetServerSideProps<ChapterPageProps> = async (c
       notFound: true
     };
   }
-  
-  // Create server-side Supabase client
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-    {
-      cookies: {
-        get(name: string) {
-          return req.cookies[name];
-        },
-        set(name: string, value: string, _: Record<string, unknown>) {
-          res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
-        },
-        remove(name: string, _: Record<string, unknown>) {
-          res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
-        },
-      },
-    }
-  );
 
   try {
-    // Check for authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Fast authentication check using JWT verification
+    const { data: safeUser, error: authError } = await getSafeUser(context);
 
-    if (authError || !user) {
+    if (authError || !safeUser) {
       return {
         redirect: {
           destination: '/login',
@@ -575,11 +556,15 @@ export const getServerSideProps: GetServerSideProps<ChapterPageProps> = async (c
       };
     }
 
+    // Import supabase server client here only when we need to fetch additional data
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = createClient(context);
+
     // Fetch user profile
     const { data: profile, error: profileError } = await supabase
       .from('users')
       .select('*')
-      .eq('id', user.id)
+      .eq('id', safeUser.id)
       .single();
 
     if (profileError) {

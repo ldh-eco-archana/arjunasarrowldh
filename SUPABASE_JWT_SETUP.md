@@ -34,10 +34,22 @@ SUPABASE_JWT_SECRET=your-jwt-secret-here
 
 ## Files Updated:
 
+**Core Authentication:**
 - `src/utils/supabase/safe-session.ts` - New JWT verification class
-- `src/utils/supabase/server.ts` - Added helper function `getSafeUser()`
-- `src/pages/dashboard.tsx` - Uses fast authentication
+- `src/utils/supabase/server.ts` - Added helper function `getSafeUser()` with fallback
+- `src/utils/supabase/middleware.ts` - Optimized to avoid expensive `getUser()` calls
+
+**Pages with Fast Authentication:**
+- `src/pages/dashboard.tsx` - Uses fast JWT authentication
 - `src/pages/login.tsx` - Uses fast authentication for redirect checks
+- `src/pages/profile.tsx` - Uses fast authentication
+- `src/pages/change-password.tsx` - Uses fast authentication  
+- `src/pages/chapter/[id].tsx` - Uses fast authentication
+
+**Sign-Out Optimization:**
+- `src/hooks/useSignOut.ts` - New hook for instant sign-out with background logout
+- `src/components/navigation/navigation.tsx` - Uses optimized sign-out
+- All sign-out buttons now redirect immediately for better UX
 
 ## Reference:
 
