@@ -32,8 +32,8 @@ import OndemandVideoIcon from '@mui/icons-material/OndemandVideo'
 import Divider from '@mui/material/Divider'
 import ContentPlayer from '@/components/content/ContentPlayer'
 import Skeleton from '@mui/material/Skeleton'
-import Fade from '@mui/material/Fade'
 import Backdrop from '@mui/material/Backdrop'
+import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -87,6 +87,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
   const [contentIsReady, setContentIsReady] = useState(false)
   const [loadingError, setLoadingError] = useState<string | null>(null)
   const [initialContentSelected, setInitialContentSelected] = useState(false)
+  const [shouldLoadContent, setShouldLoadContent] = useState(false)
 
   // Group content by type using useMemo to prevent unnecessary recalculations
   const pdfContents = useMemo(() => 
@@ -111,8 +112,11 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
       if (defaultContent) {
         setSelectedContent(defaultContent);
         setInitialContentSelected(true);
-        // Start loading indicator
-        setIsContentLoading(true);
+        // Delay content loading slightly to improve perceived performance
+        setTimeout(() => {
+          setShouldLoadContent(true);
+          setIsContentLoading(true);
+        }, 100);
       }
     }
   }, [contentType, pdfContents, videoContents, initialContentSelected]);
@@ -123,14 +127,17 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
     setInitialContentSelected(false)
     setSelectedContent(null)
     setContentIsReady(false)
+    setShouldLoadContent(false)
   }
 
   const handleContentSelect = (content: Content): void => {
     if (selectedContent?.id === content.id) return;
     
     setContentIsReady(false);
-    setIsContentLoading(true);
     setSelectedContent(content);
+    // Immediate loading for user-selected content
+    setShouldLoadContent(true);
+    setIsContentLoading(true);
   }
 
   const handleContentError = (error: string): void => {
@@ -180,25 +187,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
 
   // Render content viewer skeleton
   const renderContentViewerSkeleton = (): JSX.Element => {
-    return (
-      <Box sx={{ 
-        width: '100%', 
-        height: { xs: 250, sm: 350, md: 500 },
-        bgcolor: 'background.paper',
-        borderRadius: 1,
-        p: 2,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 2
-      }}>
-        <CircularProgress size={50} />
-        <Typography variant="body2" color="text.secondary">
-          Loading content...
-        </Typography>
-      </Box>
-    );
+    return <LoadingSkeleton height={{ xs: 250, sm: 350, md: 500 }} />;
   };
 
   if (error) {
@@ -424,20 +413,22 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                   )}
                   
                   {!initialContentSelected ? (
-                    <Fade in={true}>
-                      {renderContentViewerSkeleton()}
-                    </Fade>
-                  ) : selectedContent && selectedContent.content_type === 'pdf' ? (
-                    <Fade in={contentIsReady} timeout={800}>
-                      <Box sx={{ visibility: contentIsReady ? 'visible' : 'hidden' }}>
-                        <ContentPlayer 
-                          content={selectedContent} 
-                          onError={handleContentError}
-                          onProgress={updateContentProgress}
-                          onReady={handleContentReady}
-                        />
-                      </Box>
-                    </Fade>
+                    renderContentViewerSkeleton()
+                  ) : selectedContent && selectedContent.content_type === 'pdf' && shouldLoadContent ? (
+                    <Box 
+                      sx={{ 
+                        opacity: contentIsReady ? 1 : 0,
+                        transition: 'opacity 0.3s ease-in-out',
+                        minHeight: '500px'
+                      }}
+                    >
+                      <ContentPlayer 
+                        content={selectedContent} 
+                        onError={handleContentError}
+                        onProgress={updateContentProgress}
+                        onReady={handleContentReady}
+                      />
+                    </Box>
                   ) : (
                     <Paper sx={{ p: 4, textAlign: 'center' }}>
                       <Typography>Select a PDF document to view</Typography>
@@ -504,20 +495,22 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                   )}
                   
                   {!initialContentSelected ? (
-                    <Fade in={true}>
-                      {renderContentViewerSkeleton()}
-                    </Fade>
-                  ) : selectedContent && selectedContent.content_type === 'video' ? (
-                    <Fade in={contentIsReady} timeout={800}>
-                      <Box sx={{ visibility: contentIsReady ? 'visible' : 'hidden' }}>
-                        <ContentPlayer 
-                          content={selectedContent} 
-                          onError={handleContentError}
-                          onProgress={updateContentProgress}
-                          onReady={handleContentReady}
-                        />
-                      </Box>
-                    </Fade>
+                    renderContentViewerSkeleton()
+                  ) : selectedContent && selectedContent.content_type === 'video' && shouldLoadContent ? (
+                    <Box 
+                      sx={{ 
+                        opacity: contentIsReady ? 1 : 0,
+                        transition: 'opacity 0.3s ease-in-out',
+                        minHeight: '500px'
+                      }}
+                    >
+                      <ContentPlayer 
+                        content={selectedContent} 
+                        onError={handleContentError}
+                        onProgress={updateContentProgress}
+                        onReady={handleContentReady}
+                      />
+                    </Box>
                   ) : (
                     <Paper sx={{ p: 4, textAlign: 'center' }}>
                       <Typography>Select a video to view</Typography>
@@ -560,12 +553,28 @@ export const getServerSideProps: GetServerSideProps<ChapterPageProps> = async (c
     const { createClient } = await import('@/utils/supabase/server');
     const supabase = createClient(context);
 
-    // Fetch user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', safeUser.id)
-      .single();
+    // Run parallel queries for better performance
+    const [
+      { data: profile, error: profileError },
+      { data: chapterData, error: chapterError }
+    ] = await Promise.all([
+      // Fetch user profile
+      supabase
+        .from('users')
+        .select('*')
+        .eq('id', safeUser.id)
+        .single(),
+      
+      // Fetch chapter with minimal content info for faster loading
+      supabase
+        .from('chapters')
+        .select(`
+          *,
+          contents:content(id, title, content_type, order_number, page_count, duration, file_url)
+        `)
+        .eq('id', chapterId)
+        .single()
+    ]);
 
     if (profileError) {
       return {
@@ -576,16 +585,6 @@ export const getServerSideProps: GetServerSideProps<ChapterPageProps> = async (c
       };
     }
 
-    // Fetch chapter with contents
-    const { data: chapterData, error: chapterError } = await supabase
-      .from('chapters')
-      .select(`
-        *,
-        contents:content(*)
-      `)
-      .eq('id', chapterId)
-      .single();
-
     if (chapterError) {
       return {
         props: {
@@ -595,12 +594,25 @@ export const getServerSideProps: GetServerSideProps<ChapterPageProps> = async (c
       };
     }
 
-    // Fetch book data
-    const { data: bookData, error: bookError } = await supabase
-      .from('books')
-      .select('*')
-      .eq('id', chapterData.book_id)
-      .single();
+    // Run remaining queries in parallel
+    const [
+      { data: bookData, error: bookError },
+      { data: courseData }
+    ] = await Promise.all([
+      // Fetch book data
+      supabase
+        .from('books')
+        .select('*')
+        .eq('id', chapterData.book_id)
+        .single(),
+      
+      // Get course info for access check  
+      supabase
+        .from('books')
+        .select('course_id')
+        .eq('id', chapterData.book_id)
+        .single()
+    ]);
 
     if (bookError) {
       return {
@@ -611,14 +623,8 @@ export const getServerSideProps: GetServerSideProps<ChapterPageProps> = async (c
       };
     }
 
-    // Check if user has access to this content
-    const { data: courseData } = await supabase
-      .from('books')
-      .select('course_id')
-      .eq('id', chapterData.book_id)
-      .single();
-
-    if (courseData) {
+    // Check user access if course data is available
+    if (courseData?.course_id) {
       const { data: userCourseData, error: userCourseError } = await supabase
         .from('user_courses')
         .select('id')

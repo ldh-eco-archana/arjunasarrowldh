@@ -97,6 +97,7 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
   const [loadingChapters, setLoadingChapters] = useState(false)
   const [expanded, setExpanded] = useState<string | false>(false)
   const [loadingError, setLoadingError] = useState<string | null>(null)
+  const [navigatingToChapter, setNavigatingToChapter] = useState<string | null>(null)
 
   // Split the fetching into multiple steps for progressive loading
   const fetchCourseStructure = useCallback(async (userId: string): Promise<void> => {
@@ -207,6 +208,21 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
     }
   }, [user, tabValue, fetchCourseStructure])
 
+  // Clear navigation state on route changes
+  useEffect(() => {
+    const handleRouteChangeComplete = (): void => {
+      setNavigatingToChapter(null)
+    }
+
+    router.events.on('routeChangeComplete', handleRouteChangeComplete)
+    router.events.on('routeChangeError', handleRouteChangeComplete)
+
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChangeComplete)
+      router.events.off('routeChangeError', handleRouteChangeComplete)
+    }
+  }, [router])
+
   // Separate function to fetch books
   const fetchBooks = async (
     supabase: SupabaseClient, 
@@ -310,6 +326,7 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
   }
 
   const navigateToChapter = (chapter: Chapter): void => {
+    setNavigatingToChapter(chapter.id)
     router.push(`/chapter/${chapter.id}`)
   }
 
@@ -449,15 +466,26 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
                             borderColor: 'divider'
                           }}
                         >
-                          <ListItemButton onClick={() => navigateToChapter(chapter)}>
+                          <ListItemButton 
+                            onClick={() => navigateToChapter(chapter)}
+                            disabled={navigatingToChapter === chapter.id}
+                          >
                             <ListItemIcon>
-                              <AutoStoriesIcon />
+                              {navigatingToChapter === chapter.id ? (
+                                <CircularProgress size={20} />
+                              ) : (
+                                <AutoStoriesIcon />
+                              )}
                             </ListItemIcon>
                             <ListItemText 
                               primary={chapter.title} 
-                              secondary={`Chapter ${chapter.order_number}`} 
+                              secondary={navigatingToChapter === chapter.id ? 'Loading chapter...' : `Chapter ${chapter.order_number}`}
                             />
-                            <ChevronRightIcon />
+                            {navigatingToChapter === chapter.id ? (
+                              <CircularProgress size={16} />
+                            ) : (
+                              <ChevronRightIcon />
+                            )}
                           </ListItemButton>
                         </ListItem>
                       ))}
@@ -513,8 +541,7 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
     }
 
     return coursesWithContent.map((course) => (
-      <Fade in={true} key={course.id} timeout={300}>
-        <Box sx={{ mb: 4 }}>
+        <Box key={course.id} sx={{ mb: 4 }}>
           <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Typography variant="h5" component="h2">
               {course.name}
@@ -549,7 +576,6 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
             </Grid>
           )}
         </Box>
-      </Fade>
     ))
   }
 

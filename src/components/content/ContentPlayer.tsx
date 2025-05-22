@@ -7,7 +7,7 @@ import { styled } from '@mui/material/styles'
 import { Content } from '@/types/database.types'
 import dynamic from 'next/dynamic'
 
-// Dynamically import the PDF viewer to avoid SSR issues
+// Lazy load PDF viewer only when needed
 const PDFViewer = dynamic(() => import('@/components/content/PDFViewer'), {
   ssr: false,
   loading: () => (
@@ -81,6 +81,11 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
   const refreshVideoUrl = useCallback(async (): Promise<void> => {
     try {
       console.log('[ContentPlayer] Refreshing video URL for content:', content.id);
+      
+      // Use AbortController for request cancellation
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       // Extract the ID and chapter ID from the file_url
       const urlParams = new URLSearchParams(content.file_url.split('?')[1])
       const id = urlParams.get('id')
@@ -92,7 +97,11 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
         return
       }
 
-      const response = await fetch(`/api/content/serve-video?id=${id}&chapterId=${chapterId}`)
+      const response = await fetch(`/api/content/serve-video?id=${id}&chapterId=${chapterId}`, {
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         console.error('[ContentPlayer] API responded with error:', response.status, response.statusText);
@@ -107,8 +116,8 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
       setVideoUrl(url)
       setLoading(false)
       
-      // Set timer to refresh URL before it expires (1 minute before expiry)
-      const refreshTime = Math.max((expiresIn - 60) * 1000, 30000) // At least 30 seconds
+      // Set timer to refresh URL before it expires (2 minutes before expiry for better UX)
+      const refreshTime = Math.max((expiresIn - 120) * 1000, 30000) // At least 30 seconds
       
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current)
@@ -125,8 +134,10 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
       }
       
     } catch (err) {
-      handleError('Error refreshing video URL')
-      console.error('[ContentPlayer] Video refresh error:', err)
+      if (err instanceof Error && err.name !== 'AbortError') {
+        handleError('Error refreshing video URL')
+        console.error('[ContentPlayer] Video refresh error:', err)
+      }
     }
   }, [content.id, content.file_url, handleError]);
 
@@ -138,13 +149,11 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     if (content.content_type === 'video') {
       refreshVideoUrl()
     } else {
-      // PDF handling is simpler as it's served directly to the PDF viewer
+      // PDF handling - faster initialization
       setLoading(false)
       if (onReady) {
-        // Slight delay to allow PDF viewer to initialize
-        setTimeout(() => {
-          onReady()
-        }, 500)
+        // Immediate callback for PDFs since they load on-demand
+        onReady()
       }
     }
 
@@ -152,7 +161,17 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     if (onProgress) {
       onProgress()
     }
-  }, [content.content_type, content.id, refreshVideoUrl, onProgress, onReady])
+
+    // Cleanup function
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+      }
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl)
+      }
+    }
+  }, [content.content_type, content.id, refreshVideoUrl, onProgress, onReady, blobUrl])
 
   // Handle video loaded
   const handleVideoLoaded = useCallback(() => {

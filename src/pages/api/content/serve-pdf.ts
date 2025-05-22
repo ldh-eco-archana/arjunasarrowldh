@@ -174,13 +174,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     
-    // Set cache headers for improved performance
-    res.setHeader('Cache-Control', 'private, max-age=600'); // 10-minute cache
+    // Set optimized cache headers for better performance
+    res.setHeader('Cache-Control', 'private, max-age=1800, stale-while-revalidate=3600'); // 30-minute cache with 1-hour stale
+    res.setHeader('ETag', `"${user.id}-${id}-${chapterId}"`); // Add ETag for better caching
     
     // Add CORS headers for embedding
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Add performance headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Accept-Ranges', 'bytes');
     
     return res.status(200).send(Buffer.from(modifiedPdfBytes));
   } catch (error) {
