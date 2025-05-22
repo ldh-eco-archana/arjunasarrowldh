@@ -14,7 +14,7 @@ import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Paper from '@mui/material/Paper'
 import { createClient as createClientBrowser } from '@/utils/supabase/client'
-import { createServerClient } from '@supabase/ssr'
+import { getSafeUser } from '@/utils/supabase/server'
 import Alert from '@mui/material/Alert'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -630,32 +630,11 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
 }
 
 export const getServerSideProps: GetServerSideProps<DashboardProps> = async (context) => {
-  const { req, res } = context;
-  
-  // Create server-side Supabase client
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-    {
-      cookies: {
-        get(name: string) {
-          return req.cookies[name];
-        },
-        set(name: string, value: string, _: Record<string, unknown>) {
-          res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
-        },
-        remove(name: string, _: Record<string, unknown>) {
-          res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
-        },
-      },
-    }
-  );
-
   try {
-    // Check for authenticated user with getUser() for improved security
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Fast and secure authentication check using JWT verification
+    const { data: safeUser, error: authError } = await getSafeUser(context);
 
-    if (authError || !user) {
+    if (authError || !safeUser) {
       return {
         redirect: {
           destination: '/login',
@@ -664,11 +643,15 @@ export const getServerSideProps: GetServerSideProps<DashboardProps> = async (con
       };
     }
 
+    // Import supabase server client here only when we need to fetch additional data
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = createClient(context);
+
     // Fetch user profile from database
     const { data: profile, error: profileError } = await supabase
       .from('users')
       .select('*')
-      .eq('id', user.id)
+      .eq('id', safeUser.id)
       .single();
 
     if (profileError) {
