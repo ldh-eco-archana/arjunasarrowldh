@@ -1,4 +1,4 @@
-import React, { FC } from 'react'
+import React, { FC, useState, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import Grid from '@mui/material/Grid'
 import Container from '@mui/material/Container'
@@ -12,6 +12,8 @@ import CardContent from '@mui/material/CardContent'
 import { StyledButton } from '@/components/styled-button'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/router'
+import LoadingWithQuotes from '@/components/loading/loading-with-quotes'
 
 interface FeatureItem {
   id: number
@@ -48,7 +50,37 @@ const features: FeatureItem[] = [
 ]
 
 const ELearningFeatures: FC = () => {
+  const router = useRouter();
+  const [isNavigatingToSignup, setIsNavigatingToSignup] = useState(false);
+
+  // Reset loading state when route changes
+  useEffect(() => {
+    const handleRouteChangeComplete = (): void => {
+      setIsNavigatingToSignup(false);
+    };
+
+    router.events.on('routeChangeComplete', handleRouteChangeComplete);
+    router.events.on('routeChangeError', handleRouteChangeComplete);
+
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChangeComplete);
+      router.events.off('routeChangeError', handleRouteChangeComplete);
+    };
+  }, [router.events]);
+
+  const handleStartLearning = (): void => {
+    setIsNavigatingToSignup(true);
+    router.push('/signup');
+  };
+
   return (
+    <>
+      {/* Show loading screen when navigating to signup */}
+      {isNavigatingToSignup && (
+        <LoadingWithQuotes message="Getting Your Learning Journey Ready..." />
+      )}
+      
+    
     <Box sx={{ py: { xs: 8, md: 10 }, backgroundColor: 'background.default' }}>
       <Container>
         <Grid container spacing={5} alignItems="center">
@@ -114,15 +146,14 @@ const ELearningFeatures: FC = () => {
               </Typography>
 
               <Box sx={{ mb: 5 }}>
-                <Link href="/signup" passHref>
-                  <StyledButton
-                    color="primary"
-                    size="large"
-                    variant="contained"
-                  >
-                    Start Learning Now
-                  </StyledButton>
-                </Link>
+                <StyledButton
+                  color="primary"
+                  size="large"
+                  variant="contained"
+                  onClick={handleStartLearning}
+                >
+                  Start Learning Now
+                </StyledButton>
               </Box>
               
               <Grid container spacing={3}>
@@ -157,6 +188,7 @@ const ELearningFeatures: FC = () => {
         </Grid>
       </Container>
     </Box>
+    </>
   )
 }
 

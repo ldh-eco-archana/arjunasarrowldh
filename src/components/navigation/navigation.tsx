@@ -1,4 +1,4 @@
-import React, { FC } from 'react'
+import React, { FC, useState, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import { Link as ScrollLink } from 'react-scroll'
 import Link from 'next/link'
@@ -7,6 +7,7 @@ import { navigations } from './navigation.data'
 import LogoutIcon from '@mui/icons-material/Logout'
 import Button from '@mui/material/Button'
 import { useSignOut } from '@/hooks/useSignOut'
+import LoadingWithQuotes from '@/components/loading/loading-with-quotes'
 
 interface NavigationProps {
   isMobile?: boolean;
@@ -16,11 +17,27 @@ interface NavigationProps {
 const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
   const router = useRouter();
   const { signOut } = useSignOut();
+  const [isNavigatingToLogin, setIsNavigatingToLogin] = useState(false);
   const isELearningRelatedPage = 
     router.pathname === '/e-learning-portal' || 
     router.pathname === '/login' || 
     router.pathname === '/signup' || 
     router.pathname === '/payment';
+
+  // Reset loading state when route changes
+  useEffect(() => {
+    const handleRouteChangeComplete = (): void => {
+      setIsNavigatingToLogin(false);
+    };
+
+    router.events.on('routeChangeComplete', handleRouteChangeComplete);
+    router.events.on('routeChangeError', handleRouteChangeComplete);
+
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChangeComplete);
+      router.events.off('routeChangeError', handleRouteChangeComplete);
+    };
+  }, [router.events]);
   
   // Check if we're on any authenticated user page (dashboard, profile, change-password)
   const isAuthenticatedUserPage = 
@@ -33,6 +50,14 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
     if (isMobile && onCloseMenu) {
       onCloseMenu();
     }
+  };
+
+  const handleLoginClick = (): void => {
+    setIsNavigatingToLogin(true);
+    if (isMobile && onCloseMenu) {
+      onCloseMenu();
+    }
+    router.push('/login');
   };
 
   const handleSignOut = async (): Promise<void> => {
@@ -359,45 +384,47 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
 
       {/* Add Login link for e-learning related pages */}
       {isELearningRelatedPage && router.pathname !== '/login' && (
-        <Link href="/login" passHref>
-          <Box
-            component="a"
-            sx={{
-              position: 'relative',
-              color: 'text.disabled',
-              cursor: 'pointer',
-              fontWeight: 600,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              px: { xs: 0, md: 3 },
-              mb: { xs: 3, md: 0 },
-              fontSize: { xs: '1.2rem', md: 'inherit' },
-              textDecoration: 'none',
-              '& > div': { display: 'none' },
-              '&:hover': {
-                color: 'primary.main',
-                '&>div': {
-                  display: 'block',
-                },
+        <Box
+          sx={{
+            position: 'relative',
+            color: 'text.disabled',
+            cursor: 'pointer',
+            fontWeight: 600,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            px: { xs: 0, md: 3 },
+            mb: { xs: 3, md: 0 },
+            fontSize: { xs: '1.2rem', md: 'inherit' },
+            textDecoration: 'none',
+            '& > div': { display: 'none' },
+            '&:hover': {
+              color: 'primary.main',
+              '&>div': {
+                display: 'block',
               },
+            },
+          }}
+          onClick={handleLoginClick}
+        >
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 12,
+              transform: 'rotate(3deg)',
+              '& img': { width: 44, height: 'auto' },
             }}
-            onClick={handleLinkClick}
           >
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 12,
-                transform: 'rotate(3deg)',
-                '& img': { width: 44, height: 'auto' },
-              }}
-            >
-              {/* eslint-disable-next-line */}
-              <img src="/images/headline-curve.svg" alt="Headline curve" />
-            </Box>
-            Login
+            {/* eslint-disable-next-line */}
+            <img src="/images/headline-curve.svg" alt="Headline curve" />
           </Box>
-        </Link>
+          Login
+        </Box>
+      )}
+
+      {/* Show loading screen when navigating to login */}
+      {isNavigatingToLogin && (
+        <LoadingWithQuotes message="Opening Login Portal..." />
       )}
     </Box>
   )

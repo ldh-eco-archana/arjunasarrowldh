@@ -1,4 +1,4 @@
-import React, { FC } from 'react'
+import React, { FC, useState, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import Grid from '@mui/material/Grid'
 import Container from '@mui/material/Container'
@@ -6,9 +6,51 @@ import Typography from '@mui/material/Typography'
 import { StyledButton } from '@/components/styled-button'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
+import LoadingWithQuotes from '@/components/loading/loading-with-quotes'
 
 const ELearningHero: FC = () => {
+  const router = useRouter();
+  const [isNavigatingToSignup, setIsNavigatingToSignup] = useState(false);
+  const [isNavigatingToLogin, setIsNavigatingToLogin] = useState(false);
+
+  // Reset loading states when route changes
+  useEffect(() => {
+    const handleRouteChangeComplete = (): void => {
+      setIsNavigatingToSignup(false);
+      setIsNavigatingToLogin(false);
+    };
+
+    router.events.on('routeChangeComplete', handleRouteChangeComplete);
+    router.events.on('routeChangeError', handleRouteChangeComplete);
+
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChangeComplete);
+      router.events.off('routeChangeError', handleRouteChangeComplete);
+    };
+  }, [router.events]);
+
+  const handleSignupClick = (): void => {
+    setIsNavigatingToSignup(true);
+    router.push('/signup');
+  };
+
+  const handleLoginClick = (): void => {
+    setIsNavigatingToLogin(true);
+    router.push('/login');
+  };
+
   return (
+    <>
+      {/* Show loading screen when navigating */}
+      {isNavigatingToSignup && (
+        <LoadingWithQuotes message="Setting Up Your Learning Journey..." />
+      )}
+      {isNavigatingToLogin && (
+        <LoadingWithQuotes message="Opening Your Economics Portal..." />
+      )}
+      
+    
     <Box id="hero" sx={{ backgroundColor: 'background.paper', position: 'relative', pt: 4, pb: { xs: 8, md: 10 } }}>
       <Container maxWidth="lg">
         <Grid container spacing={0} sx={{ flexDirection: { xs: 'column', md: 'unset' } }}>
@@ -100,26 +142,24 @@ const ELearningHero: FC = () => {
               </Box>
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, '& button': { mr: 2 }, alignItems: { xs: 'center', sm: 'flex-start' } }}>
                 <Box sx={{ mb: { xs: 2, sm: 0 }, mr: { xs: 0, sm: 2 } }}>
-                  <Link href="/signup" passHref>
-                    <StyledButton 
-                      color="primary" 
-                      size="large" 
-                      variant="contained"
-                    >
-                      Join Our Platform
-                    </StyledButton>
-                  </Link>
+                  <StyledButton 
+                    color="primary" 
+                    size="large" 
+                    variant="contained"
+                    onClick={handleSignupClick}
+                  >
+                    Join Our Platform
+                  </StyledButton>
                 </Box>
                 <Box sx={{ width: { xs: 'fit-content', sm: 'auto' } }}>
-                  <Link href="/login" passHref>
-                    <StyledButton 
-                      color="primary" 
-                      size="large" 
-                      variant="outlined"
-                    >
-                      Login to Platform
-                    </StyledButton>
-                  </Link>
+                  <StyledButton 
+                    color="primary" 
+                    size="large" 
+                    variant="outlined"
+                    onClick={handleLoginClick}
+                  >
+                    Login to Platform
+                  </StyledButton>
                 </Box>
               </Box>
             </Box>
@@ -132,6 +172,7 @@ const ELearningHero: FC = () => {
         </Grid>
       </Container>
     </Box>
+    </>
   )
 }
 
