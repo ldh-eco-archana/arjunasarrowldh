@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
+import { AuthGuard } from '@/components/auth/AuthGuard'
 import Head from 'next/head'
 import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
@@ -12,7 +13,6 @@ import Link from 'next/link'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Alert from '@mui/material/Alert'
-import { useRouter } from 'next/router'
 import InputAdornment from '@mui/material/InputAdornment'
 import EmailIcon from '@mui/icons-material/Email'
 import LockIcon from '@mui/icons-material/Lock'
@@ -21,11 +21,8 @@ import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
 import { createClient } from '@/utils/supabase/client'
 import Backdrop from '@mui/material/Backdrop'
-import { GetServerSideProps } from 'next'
-import { getSafeUser } from '@/utils/supabase/server'
 
-const Login: NextPageWithLayout = () => {
-  const router = useRouter()
+const LoginContent: React.FC = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,11 +46,9 @@ const Login: NextPageWithLayout = () => {
       }
 
       if (data?.user) {
-        // Immediately indicate that we're redirecting
+        // Indicate that we're redirecting
         setRedirecting(true)
-        
-        // Redirect to dashboard right away
-        router.push('/dashboard')
+        // AuthGuard will handle the redirection automatically
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -247,35 +242,16 @@ const Login: NextPageWithLayout = () => {
   )
 }
 
-// Server-side authentication check using fast JWT verification
-export const getServerSideProps: GetServerSideProps = async (context) => {
-  try {
-    // Fast authentication check using JWT verification
-    const { data: safeUser, error: authError } = await getSafeUser(context);
+const Login: NextPageWithLayout = () => {
+  return (
+    <AuthGuard requireAuth={false} redirectTo="/dashboard">
+      <LoginContent />
+    </AuthGuard>
+  )
+}
 
-    if (safeUser && !authError) {
-      // User is already authenticated, redirect to dashboard
-      return {
-        redirect: {
-          destination: '/dashboard',
-          permanent: false,
-        },
-      };
-    }
-
-    // User is not authenticated, continue to login page
-    return {
-      props: {},
-    };
-  } catch (error) {
-    console.error('Server-side auth error:', error);
-    // If there's an error with JWT verification, allow access to login page
-    return {
-      props: {},
-    };
-  }
-};
-
+// No server-side props needed - using fast client-side auth check
+// This eliminates the slow JWT verification on every page load
 Login.getLayout = (page) => <MainLayout isAuthenticated={false}>{page}</MainLayout>
 
 export default Login 
