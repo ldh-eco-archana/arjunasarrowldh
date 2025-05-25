@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Box, CircularProgress, Typography } from '@mui/material'
 import Backdrop from '@mui/material/Backdrop'
 import { useAuthRedirect } from '@/hooks/useAuthRedirect'
@@ -21,11 +21,28 @@ export function AuthGuard({
   redirectTo = '/login',
   fallback
 }: AuthGuardProps): JSX.Element {
+  const [showDashboardLoading, setShowDashboardLoading] = useState(false)
+  const [dashboardReady, setDashboardReady] = useState(false)
+  
   const { user, loading, checking } = useAuthRedirect({
     redirectTo: requireAuth ? undefined : redirectTo,
     redirectIf: requireAuth ? 'unauthenticated' : 'authenticated',
     enabled: true
   })
+
+  // Handle dashboard loading completion
+  useEffect(() => {
+    if (!requireAuth && user && redirectTo === '/dashboard') {
+      setShowDashboardLoading(true)
+      
+      // Simulate dashboard preparation time
+      const timer = setTimeout(() => {
+        setDashboardReady(true)
+      }, 1000) // Small delay to ensure smooth transition
+      
+      return () => clearTimeout(timer)
+    }
+  }, [user, requireAuth, redirectTo])
 
   // Show loading state while checking authentication
   if (checking || loading) {
@@ -77,14 +94,16 @@ export function AuthGuard({
   if (!requireAuth && user) {
     // Check if we're redirecting to dashboard
     if (redirectTo === '/dashboard') {
-      return (
-        <DashboardLoading 
-          message="Welcome back! Setting up your dashboard..."
-          onComplete={() => {
-            // The redirection is handled by useAuthRedirect hook
-          }}
-        />
-      )
+      if (showDashboardLoading && !dashboardReady) {
+        return (
+          <DashboardLoading 
+            message="Welcome back! Setting up your dashboard..."
+            onComplete={() => {
+              setDashboardReady(true)
+            }}
+          />
+        )
+      }
     }
 
     // For other redirects, use the generic backdrop
