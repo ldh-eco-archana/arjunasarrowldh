@@ -361,22 +361,67 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
             <TabPanel value={tabValue} index={0}>
               <Grid container spacing={3}>
                 {/* PDF content list */}
-                <Grid item xs={12} md={4} sx={{ order: { xs: 2, md: 1 } }}>
-                  <Card sx={{ height: '100%' }}>
-                    <CardContent>
-                      <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+                <Grid item xs={12} md={4} sx={{ order: { xs: 1, md: 1 } }}>
+                  <Card sx={{ 
+                    height: '100%',
+                    mb: { xs: 2, md: 0 } // Add margin bottom on mobile for better separation
+                  }}>
+                    <CardContent sx={{ pb: { xs: 2, md: 3 } }}>
+                      <Typography 
+                        variant="h6" 
+                        component="h2" 
+                        sx={{ 
+                          mb: 2,
+                          position: { xs: 'sticky', md: 'static' },
+                          top: { xs: 0, md: 'auto' },
+                          backgroundColor: { xs: 'background.paper', md: 'transparent' },
+                          zIndex: { xs: 1, md: 'auto' },
+                          py: { xs: 1, md: 0 },
+                          mx: { xs: -2, md: 0 },
+                          px: { xs: 2, md: 0 }
+                        }}
+                      >
                         PDF Documents
+                        <Typography 
+                          variant="caption" 
+                          component="div" 
+                          sx={{ 
+                            display: { xs: 'block', md: 'none' },
+                            color: 'text.secondary',
+                            fontWeight: 'normal',
+                            mt: 0.5
+                          }}
+                        >
+                          Select a document to view below
+                        </Typography>
                       </Typography>
                       {pdfContents.length === 0 ? (
                         <Alert severity="info">No PDF documents available</Alert>
                       ) : (
-                        <List sx={{ maxHeight: { xs: '200px', sm: '300px', md: 'none' }, overflowY: 'auto' }}>
+                        <List sx={{ 
+                          maxHeight: { xs: '250px', sm: '300px', md: 'none' }, 
+                          overflowY: 'auto',
+                          '& .MuiListItemButton-root': {
+                            borderRadius: 1,
+                            mb: 0.5,
+                            '&:hover': {
+                              backgroundColor: 'action.hover'
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: 'primary.light',
+                              '&:hover': {
+                                backgroundColor: 'primary.light'
+                              }
+                            }
+                          }
+                        }}>
                           {initialContentSelected ? pdfContents.map((content) => (
                             <React.Fragment key={content.id}>
                               <ListItem disablePadding>
                                 <ListItemButton 
                                   selected={selectedContent?.id === content.id}
                                   onClick={() => handleContentSelect(content)}
+                                  sx={{ py: { xs: 1.5, md: 1 } }} // More padding on mobile
                                 >
                                   <ListItemIcon>
                                     <PictureAsPdfIcon color="primary" />
@@ -389,7 +434,8 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                                       sx: { 
                                         maxWidth: { xs: '200px', sm: 'none' },
                                         overflow: 'hidden',
-                                        textOverflow: 'ellipsis'
+                                        textOverflow: 'ellipsis',
+                                        fontWeight: selectedContent?.id === content.id ? 'medium' : 'normal'
                                       }
                                     }}
                                   />
@@ -405,7 +451,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                 </Grid>
                 
                 {/* PDF viewer */}
-                <Grid item xs={12} md={8} sx={{ order: { xs: 1, md: 2 } }}>
+                <Grid item xs={12} md={8} sx={{ order: { xs: 2, md: 2 } }}>
                   {loadingError && (
                     <Alert severity="error" sx={{ mb: 2 }}>
                       {loadingError}
@@ -441,22 +487,67 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
             <TabPanel value={tabValue} index={1}>
               <Grid container spacing={3}>
                 {/* Video content list */}
-                <Grid item xs={12} md={4} sx={{ order: { xs: 2, md: 1 } }}>
-                  <Card sx={{ height: '100%' }}>
-                    <CardContent>
-                      <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+                <Grid item xs={12} md={4} sx={{ order: { xs: 1, md: 1 } }}>
+                  <Card sx={{ 
+                    height: '100%',
+                    mb: { xs: 2, md: 0 } // Add margin bottom on mobile for better separation
+                  }}>
+                    <CardContent sx={{ pb: { xs: 2, md: 3 } }}>
+                      <Typography 
+                        variant="h6" 
+                        component="h2" 
+                        sx={{ 
+                          mb: 2,
+                          position: { xs: 'sticky', md: 'static' },
+                          top: { xs: 0, md: 'auto' },
+                          backgroundColor: { xs: 'background.paper', md: 'transparent' },
+                          zIndex: { xs: 1, md: 'auto' },
+                          py: { xs: 1, md: 0 },
+                          mx: { xs: -2, md: 0 },
+                          px: { xs: 2, md: 0 }
+                        }}
+                      >
                         Video Lectures
+                        <Typography 
+                          variant="caption" 
+                          component="div" 
+                          sx={{ 
+                            display: { xs: 'block', md: 'none' },
+                            color: 'text.secondary',
+                            fontWeight: 'normal',
+                            mt: 0.5
+                          }}
+                        >
+                          Select a video to watch below
+                        </Typography>
                       </Typography>
                       {videoContents.length === 0 ? (
                         <Alert severity="info">No videos available</Alert>
                       ) : (
-                        <List sx={{ maxHeight: { xs: '200px', sm: '300px', md: 'none' }, overflowY: 'auto' }}>
+                        <List sx={{ 
+                          maxHeight: { xs: '250px', sm: '300px', md: 'none' }, 
+                          overflowY: 'auto',
+                          '& .MuiListItemButton-root': {
+                            borderRadius: 1,
+                            mb: 0.5,
+                            '&:hover': {
+                              backgroundColor: 'action.hover'
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: 'primary.light',
+                              '&:hover': {
+                                backgroundColor: 'primary.light'
+                              }
+                            }
+                          }
+                        }}>
                           {initialContentSelected ? videoContents.map((content) => (
                             <React.Fragment key={content.id}>
                               <ListItem disablePadding>
                                 <ListItemButton 
                                   selected={selectedContent?.id === content.id}
                                   onClick={() => handleContentSelect(content)}
+                                  sx={{ py: { xs: 1.5, md: 1 } }} // More padding on mobile
                                 >
                                   <ListItemIcon>
                                     <OndemandVideoIcon color="primary" />
@@ -471,7 +562,8 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                                       sx: { 
                                         maxWidth: { xs: '200px', sm: 'none' },
                                         overflow: 'hidden',
-                                        textOverflow: 'ellipsis'
+                                        textOverflow: 'ellipsis',
+                                        fontWeight: selectedContent?.id === content.id ? 'medium' : 'normal'
                                       }
                                     }}
                                   />
@@ -487,7 +579,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = ({ user, error, chapte
                 </Grid>
                 
                 {/* Video player */}
-                <Grid item xs={12} md={8} sx={{ order: { xs: 1, md: 2 } }}>
+                <Grid item xs={12} md={8} sx={{ order: { xs: 2, md: 2 } }}>
                   {loadingError && (
                     <Alert severity="error" sx={{ mb: 2 }}>
                       {loadingError}

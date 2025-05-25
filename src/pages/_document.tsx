@@ -1,5 +1,4 @@
 import React from 'react'
-import theme from '@/config/theme'
 import { NextComponentType } from 'next'
 import { AppInitialProps } from 'next/app'
 import { EmotionCache } from '@emotion/cache'
@@ -18,15 +17,21 @@ class MyDocument extends Document<DocumentProps> {
       <Html lang="en">
         <Head>
           <meta charSet="utf-8" />
-          <link rel="icon" href="/favicon.ico" />
+          {/* Gandiva Favicon - Multiple formats for better browser support */}
+          <link rel="icon" href="/favicon.ico" sizes="any" />
+          <link rel="icon" href="/gandiva-favicon.svg" type="image/svg+xml" />
+          <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+          <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+          <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192x192.png" />
+          <link rel="manifest" href="/site.webmanifest" />
           <meta name="viewport" content="initial-scale=1, width=device-width" />
 
-          {/* PWA primary color */}
-          <meta name="theme-color" content={theme.palette.background.paper} />
+          {/* PWA primary color - Updated to match Gandiva theme */}
+          <meta name="theme-color" content="#127C71" />
 
-          <meta content="#fbfbfb" name="theme-color" />
-          <meta content="#fbfbfb" name="msapplication-navbutton-color" />
-          <meta content="#fbfbfb" name="apple-mobile-web-app-status-bar-style" />
+          <meta content="#127C71" name="theme-color" />
+          <meta content="#127C71" name="msapplication-navbutton-color" />
+          <meta content="#127C71" name="apple-mobile-web-app-status-bar-style" />
           <meta content="yes" name="apple-mobile-web-app-capable" />
 
           <link rel="preconnect" href="https://fonts.googleapis.com" />

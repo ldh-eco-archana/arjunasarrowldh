@@ -1,0 +1,22 @@
+{
+  "functions": {
+    "src/pages/api/content/serve-pdf-vercel.ts": {
+      "maxDuration": 10
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/content/serve-pdf-vercel",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, max-age=86400, stale-while-revalidate=604800"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "max-age=86400"
+        }
+      ]
+    }
+  ]
+} 

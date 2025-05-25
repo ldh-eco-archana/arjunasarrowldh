@@ -190,74 +190,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log('[upload-content] Processing PDF file')
       
       try {
-        // Process PDF - Add watermark
+        // Process PDF - add simple watermark and get page count
         console.log('[upload-content] Loading PDF document')
-        // Convert Buffer to Uint8Array for PDF-lib
         const pdfDoc = await PDFDocument.load(new Uint8Array(fileBuffer))
         
         const pages = pdfDoc.getPages()
         console.log('[upload-content] PDF loaded successfully', { pageCount: pages.length })
         
-        console.log('[upload-content] Embedding font')
+        // Embed font for watermark
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
         
         // Store page count
         additionalData.pageCount = pages.length
         
+        // Add simple watermark to each page
         console.log('[upload-content] Adding watermarks to PDF pages')
-        // Add Arjuna's Arrow watermark to each page
         for (const page of pages) {
           const { width, height } = page.getSize()
           
-          // Create a grid of watermarks instead of just one central watermark
-          // Watermark placement positions (relative to page)
-          const watermarkPositions = [
-            { x: width / 4, y: height / 4 },
-            { x: width * 3/4, y: height / 4 },
-            { x: width / 4, y: height * 3/4 },
-            { x: width * 3/4, y: height * 3/4 },
-            { x: width / 2, y: height / 2 }, // Center watermark
-          ];
-          
-          // Add multiple Arjuna's Arrow watermarks with reduced opacity
-          watermarkPositions.forEach(pos => {
-            page.drawText("Arjuna's Arrow", {
-              x: pos.x - 150,
-              y: pos.y,
-              size: 60,
-              font,
-              color: rgb(0.8, 0.8, 0.8),  // Darker gray (was 0.9, 0.9, 0.9)
-              opacity: 0.3,               // Reduced opacity from 0.5 to 0.3
-              rotate: degrees(45),
-            });
-          });
-          
-          // Find and replace any existing {user_content} watermarks at the bottom of the page
-          // The bottom area of the page where user content watermarks typically appear
-          const bottomAreaHeight = 40;
-          
-          // Draw a white rectangle over the bottom area to cover any existing {user_content} watermark
-          page.drawRectangle({
-            x: 0,
-            y: 0,
-            width: width,
-            height: bottomAreaHeight,
-            color: rgb(1, 1, 1), // White color to cover existing text
-            opacity: 1,
+          // Add a simple center watermark
+          page.drawText("Arjuna's Arrow", {
+            x: width / 2 - 100,
+            y: height / 2,
+            size: 50,
+            font,
+            color: rgb(0.9, 0.9, 0.9), // Light gray
+            opacity: 0.3,
+            rotate: degrees(45),
           });
         }
         
-        console.log('[upload-content] Saving modified PDF')
-        // Disallow printing in the PDF
+        // Save the modified PDF
+        console.log('[upload-content] Saving watermarked PDF')
         const modifiedPdfBytes = await pdfDoc.save({
           useObjectStreams: false,
         })
         
         processedBuffer = Buffer.from(modifiedPdfBytes)
-        console.log('[upload-content] PDF processed successfully', { 
-          originalSize: fileBuffer.length, 
-          processedSize: processedBuffer.length 
-        })
+        console.log('[upload-content] PDF processed successfully with watermark')
       } catch (pdfError) {
         console.error('[upload-content] Error processing PDF:', pdfError)
         return res.status(500).json({ error: 'Failed to process PDF: ' + (pdfError as Error).message })

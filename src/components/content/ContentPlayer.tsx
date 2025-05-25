@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import { styled } from '@mui/material/styles'
 import { Content } from '@/types/database.types'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import dynamic from 'next/dynamic'
 
-// Lazy load PDF viewer only when needed
+// Lazy load PDF viewers only when needed
 const PDFViewer = dynamic(() => import('@/components/content/PDFViewer'), {
   ssr: false,
   loading: () => (
@@ -25,6 +26,23 @@ const PDFViewer = dynamic(() => import('@/components/content/PDFViewer'), {
   )
 })
 
+const MobilePDFViewer = dynamic(() => import('@/components/content/MobilePDFViewer'), {
+  ssr: false,
+  loading: () => (
+    <Box sx={{ 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center',
+      height: '70vh',
+      flexDirection: 'column',
+      gap: 2
+    }}>
+      <CircularProgress />
+      <Typography>Loading mobile PDF viewer...</Typography>
+    </Box>
+  )
+})
+
 // Container for PDF content
 const PdfContainer = styled('div')`
   position: relative;
@@ -32,7 +50,7 @@ const PdfContainer = styled('div')`
   height: 70vh;
   
   @media (max-width: 768px) {
-    height: 65vh;
+    height: 85vh;
   }
   
   @media (orientation: landscape) and (max-width: 900px) {
@@ -41,7 +59,7 @@ const PdfContainer = styled('div')`
 `
 
 // Styled video element
-const SecureVideoElement = styled('video')`
+const VideoElement = styled('video')`
   width: 100%;
   max-height: 70vh;
   border-radius: ${props => props.theme.shape.borderRadius}px;
@@ -55,7 +73,6 @@ interface ContentPlayerProps {
   onReady?: () => void
 }
 
-// Component to display content (PDF or video)
 const ContentPlayer: React.FC<ContentPlayerProps> = ({ 
   content, 
   onError,
@@ -64,181 +81,93 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
 }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [pdfUrl, setPdfUrl] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
-  const [useBlobUrl, setUseBlobUrl] = useState(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const { isMobile } = useIsMobile()
 
-  // Function to handle errors
   const handleError = useCallback((errorMsg: string): void => {
     setError(errorMsg)
     setLoading(false)
     if (onError) onError(errorMsg)
   }, [onError]);
 
-  // Function to refresh video URL when it expires
-  const refreshVideoUrl = useCallback(async (): Promise<void> => {
+  // Fetch video signed URL
+  const fetchVideoUrl = useCallback(async (): Promise<void> => {
     try {
-      console.log('[ContentPlayer] Refreshing video URL for content:', content.id);
-      
-      // Use AbortController for request cancellation
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      // Extract the ID and chapter ID from the file_url
       const urlParams = new URLSearchParams(content.file_url.split('?')[1])
       const id = urlParams.get('id')
       const chapterId = urlParams.get('chapterId')
 
       if (!id || !chapterId) {
-        console.error('[ContentPlayer] Missing ID or chapterId in content URL:', content.file_url);
         handleError('Invalid content URL')
         return
       }
 
-      const response = await fetch(`/api/content/serve-video?id=${id}&chapterId=${chapterId}`, {
-        signal: controller.signal
-      })
-      
-      clearTimeout(timeoutId);
+      const response = await fetch(`/api/content/serve-video?id=${id}&chapterId=${chapterId}`)
       
       if (!response.ok) {
-        console.error('[ContentPlayer] API responded with error:', response.status, response.statusText);
         const errorData = await response.json()
-        handleError(errorData.error || 'Failed to refresh video URL')
+        handleError(errorData.error || 'Failed to load video')
         return
       }
 
       const data = await response.json()
-      const { url, expiresIn } = data
-      
-      setVideoUrl(url)
+      setVideoUrl(data.url)
       setLoading(false)
       
-      // Set timer to refresh URL before it expires (2 minutes before expiry for better UX)
-      const refreshTime = Math.max((expiresIn - 120) * 1000, 30000) // At least 30 seconds
-      
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current)
-      }
-      
-      refreshTimerRef.current = setTimeout(refreshVideoUrl, refreshTime)
-      
-      // If we have a video reference and the video was playing, resume playback
-      if (videoRef.current && !videoRef.current.paused) {
-        const currentTime = videoRef.current.currentTime
-        videoRef.current.src = url
-        videoRef.current.currentTime = currentTime
-        videoRef.current.play().catch(console.error)
-      }
-      
     } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        handleError('Error refreshing video URL')
-        console.error('[ContentPlayer] Video refresh error:', err)
-      }
+      handleError('Error loading video')
+      console.error('Video fetch error:', err)
     }
-  }, [content.id, content.file_url, handleError]);
+  }, [content.file_url, handleError]);
 
-  // Initialize content based on type
+  // Initialize content
   useEffect(() => {
     setLoading(true)
     setError('')
+    setPdfUrl('')
+    setVideoUrl('')
 
-    if (content.content_type === 'video') {
-      refreshVideoUrl()
-    } else {
-      // PDF handling - faster initialization
+    if (content.content_type === 'pdf') {
+      // For PDFs, use the API endpoint directly since it serves the PDF
+      const urlParams = new URLSearchParams(content.file_url.split('?')[1])
+      const id = urlParams.get('id')
+      const chapterId = urlParams.get('chapterId')
+
+      if (!id || !chapterId) {
+        handleError('Invalid content URL')
+        return
+      }
+
+      const directPdfUrl = `/api/content/serve-pdf?id=${id}&chapterId=${chapterId}`
+      setPdfUrl(directPdfUrl)
       setLoading(false)
-      if (onReady) {
-        // Immediate callback for PDFs since they load on-demand
-        onReady()
-      }
+      if (onReady) onReady()
+    } else if (content.content_type === 'video') {
+      fetchVideoUrl()
+    } else {
+      setLoading(false)
     }
 
-    // Register progress update
-    if (onProgress) {
-      onProgress()
-    }
+    if (onProgress) onProgress()
+  }, [content.content_type, content.id, fetchVideoUrl, onProgress, onReady])
 
-    // Cleanup function
-    return () => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current)
-      }
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl)
-      }
-    }
-  }, [content.content_type, content.id, refreshVideoUrl, onProgress, onReady, blobUrl])
-
-  // Handle video loaded
-  const handleVideoLoaded = useCallback(() => {
+  const handleContentLoaded = useCallback(() => {
     setLoading(false);
-    if (onReady) {
-      onReady();
-    }
+    if (onReady) onReady();
   }, [onReady]);
 
-  // Function to fetch video as blob and create object URL
-  const fetchVideoAsBlob = async (url: string): Promise<boolean> => {
-    try {
-      console.log('[ContentPlayer] Fetching video as blob');
-      setLoading(true);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'omit'
-      });
-      
-      if (!response.ok) {
-        console.error('[ContentPlayer] Failed to fetch video blob:', response.status, response.statusText);
-        return false;
-      }
-      
-      const blob = await response.blob();
-      console.log('[ContentPlayer] Video blob received:', { 
-        size: Math.round(blob.size / 1024 / 1024 * 100) / 100 + ' MB',
-        type: blob.type 
-      });
-      
-      // Create blob URL
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl);
-      }
-      
-      const newBlobUrl = URL.createObjectURL(blob);
-      setBlobUrl(newBlobUrl);
-      setUseBlobUrl(true);
-      setLoading(false);
-      
-      return true;
-    } catch (error) {
-      console.error('[ContentPlayer] Error fetching video blob:', error);
-      return false;
-    }
-  }
-
-  // Try alternative method when direct URL fails
-  const handleVideoError = (): void => {
-    if (!useBlobUrl && videoUrl) {
-      console.log('[ContentPlayer] Direct URL failed, trying blob approach');
-      fetchVideoAsBlob(videoUrl).catch(error => {
-        console.error('[ContentPlayer] Both video approaches failed:', error);
-        handleError('Video failed to load. Please try again later.');
-      });
-    } else {
-      handleError('Video failed to load. Please try again later.');
-    }
+  const handleContentError = (): void => {
+    handleError(`${content.content_type} failed to load`);
   };
 
-  // Content type-specific rendering
-  if (loading && content.content_type === 'video') {
+  if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
         <CircularProgress />
+        <Typography sx={{ ml: 2 }}>
+          Loading {content.content_type}...
+        </Typography>
       </Box>
     )
   }
@@ -251,64 +180,61 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     )
   }
 
-  // Render PDF content with modern viewer
-  if (content.content_type === 'pdf') {
+  // Render PDF content with mobile optimization
+  if (content.content_type === 'pdf' && pdfUrl) {
     return (
       <PdfContainer>
-        <PDFViewer fileUrl={content.file_url} title={content.title || "PDF Document"} />
+        {isMobile ? (
+          <MobilePDFViewer 
+            fileUrl={pdfUrl} 
+            title={content.title || "PDF Document"}
+          />
+        ) : (
+          <>
+            {/* Desktop tip */}
+            <Box 
+              sx={{ 
+                display: { xs: 'none', md: 'block' },
+                backgroundColor: 'info.light',
+                color: 'info.contrastText',
+                p: 1,
+                mb: 1,
+                borderRadius: 1,
+                fontSize: '0.875rem',
+                textAlign: 'center'
+              }}
+            >
+              💡 Use mouse wheel to zoom • Click and drag to pan • Use toolbar controls
+            </Box>
+            <PDFViewer 
+              fileUrl={pdfUrl} 
+              title={content.title || "PDF Document"}
+            />
+          </>
+        )}
       </PdfContainer>
     )
   }
 
   // Render video content
-  if (content.content_type === 'video') {
+  if (content.content_type === 'video' && videoUrl) {
     return (
-      <Box 
-        sx={{ width: '100%', position: 'relative' }}
-        onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
-      >
-        {loading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-            <CircularProgress />
-          </Box>
-        )}
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-        
-        {useBlobUrl && blobUrl ? (
-          <SecureVideoElement
-            ref={videoRef}
-            src={blobUrl}
-            controls
-            playsInline
-            controlsList="nodownload noremoteplayback"
-            disablePictureInPicture
-            onError={handleVideoError}
-            onLoadedData={handleVideoLoaded}
-            onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
-          />
-        ) : (
-          <SecureVideoElement
-            ref={videoRef}
-            src={videoUrl}
-            controls
-            playsInline
-            controlsList="nodownload noremoteplayback"
-            disablePictureInPicture
-            onError={handleVideoError}
-            onLoadedData={handleVideoLoaded}
-            onContextMenu={(e: React.MouseEvent) => e.preventDefault()}
-          />
-        )}
+      <Box sx={{ width: '100%' }}>
+        <VideoElement
+          src={videoUrl}
+          controls
+          playsInline
+          preload="metadata"
+          webkit-playsinline="true"
+          controlsList="nodownload noremoteplayback"
+          disablePictureInPicture
+          onError={handleContentError}
+          onLoadedData={handleContentLoaded}
+        />
       </Box>
     )
   }
 
-  // Fallback for unsupported content types
   return (
     <Alert severity="warning">
       Unsupported content type: {content.content_type}

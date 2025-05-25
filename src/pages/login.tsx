@@ -20,14 +20,12 @@ import Image from 'next/image'
 import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
 import { createClient } from '@/utils/supabase/client'
-import Backdrop from '@mui/material/Backdrop'
 
 const LoginContent: React.FC = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [redirecting, setRedirecting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -46,9 +44,8 @@ const LoginContent: React.FC = () => {
       }
 
       if (data?.user) {
-        // Indicate that we're redirecting
-        setRedirecting(true)
-        // AuthGuard will handle the redirection automatically
+        // AuthGuard will handle the redirection and show the dashboard loading
+        // No need to set redirecting state here
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -66,22 +63,6 @@ const LoginContent: React.FC = () => {
           content="Login to access your economics e-learning account. Comprehensive digital learning platform for economics students."
         />
       </Head>
-      
-      {/* Fullscreen redirect backdrop */}
-      <Backdrop
-        sx={{ 
-          color: '#fff', 
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-          flexDirection: 'column',
-          gap: 2 
-        }}
-        open={redirecting}
-      >
-        <CircularProgress color="inherit" size={60} />
-        <Typography variant="h6">
-          Preparing your dashboard...
-        </Typography>
-      </Backdrop>
       
       <Box 
         sx={{ 
@@ -159,7 +140,7 @@ const LoginContent: React.FC = () => {
                       autoFocus
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading || redirecting}
+                      disabled={loading}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -181,7 +162,7 @@ const LoginContent: React.FC = () => {
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading || redirecting}
+                      disabled={loading}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -198,7 +179,7 @@ const LoginContent: React.FC = () => {
                       color="primary"
                       size="large"
                       sx={{ width: '100%', mt: 3, mb: 2 }}
-                      disabled={loading || redirecting}
+                      disabled={loading}
                     >
                       {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
                     </StyledButton>

@@ -99,6 +99,96 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
   const [loadingError, setLoadingError] = useState<string | null>(null)
   const [navigatingToChapter, setNavigatingToChapter] = useState<string | null>(null)
 
+  // Separate function to fetch chapters
+  const fetchChapters = useCallback(async (
+    supabase: SupabaseClient, 
+    bookIds: string[], 
+    courses: CourseWithBooks[]
+  ): Promise<void> => {
+    try {
+      const { data: chaptersData, error: chaptersError } = await supabase
+        .from('chapters')
+        .select('*')
+        .in('book_id', bookIds)
+        .order('order_number', { ascending: true })
+      
+      if (chaptersError) {
+        throw new Error(`Failed to fetch chapters: ${chaptersError.message}`)
+      }
+      
+      // Create a map of book_id to chapters
+      const bookToChapters = new Map<string, Chapter[]>()
+      chaptersData.forEach((chapter: Chapter) => {
+        if (!bookToChapters.has(chapter.book_id)) {
+          bookToChapters.set(chapter.book_id, [])
+        }
+        bookToChapters.get(chapter.book_id)?.push(chapter)
+      })
+      
+      // Update books with chapters
+      const finalCourses = [...courses]
+      finalCourses.forEach(course => {
+        course.books.forEach(book => {
+          book.chapters = bookToChapters.get(book.id) || []
+        })
+      })
+      
+      setCoursesWithContent(finalCourses)
+    } catch (error) {
+      console.error('Error fetching chapters:', error)
+    } finally {
+      setLoadingChapters(false)
+    }
+  }, [])
+
+  // Separate function to fetch books
+  const fetchBooks = useCallback(async (
+    supabase: SupabaseClient, 
+    courseIds: string[], 
+    courses: CourseWithBooks[]
+  ): Promise<void> => {
+    try {
+      const { data: booksData, error: booksError } = await supabase
+        .from('books')
+        .select('*')
+        .in('course_id', courseIds)
+      
+      if (booksError) {
+        throw new Error(`Failed to fetch books: ${booksError.message}`)
+      }
+      
+      // Create a map of course_id to books
+      const courseToBooks = new Map<string, BookWithChapters[]>()
+      booksData.forEach((book: Book) => {
+        if (!courseToBooks.has(book.course_id)) {
+          courseToBooks.set(book.course_id, [])
+        }
+        courseToBooks.get(book.course_id)?.push({...book, chapters: []})
+      })
+      
+      // Update the courses with books
+      const updatedCourses = [...courses];
+      updatedCourses.forEach(course => {
+        course.books = courseToBooks.get(course.id) || []
+      })
+      
+      setCoursesWithContent(updatedCourses)
+      setLoadingBooks(false)
+      
+      // Extract book IDs
+      const bookIds = booksData.map((book: Book) => book.id)
+      
+      if (bookIds.length > 0) {
+        // Step 3: Fetch chapters in the background
+        setLoadingChapters(true)
+        fetchChapters(supabase, bookIds, updatedCourses)
+      }
+    } catch (error) {
+      console.error('Error fetching books:', error)
+      setLoadingBooks(false)
+    }
+  }, [fetchChapters])
+
   // Split the fetching into multiple steps for progressive loading
   const fetchCourseStructure = useCallback(async (userId: string): Promise<void> => {
     setLoadingCourses(true)
@@ -181,9 +271,9 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
       setLoadingError((error as Error).message)
       setLoadingCourses(false)
     }
-  }, []);
+  }, [fetchBooks]);
 
-  const checkSession = async (): Promise<void> => {
+  const checkSession = useCallback(async (): Promise<void> => {
     // Verify session on client-side as well
     const supabase = createClientBrowser()
     const { data, error } = await supabase.auth.getSession()
@@ -196,11 +286,11 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
     } else {
       setSessionStatus('Session valid')
     }
-  }
+  }, [router])
 
   useEffect(() => {
     checkSession()
-  }, [router])
+  }, [checkSession])
 
   useEffect(() => {
     if (user?.id && tabValue === 0) {
@@ -222,96 +312,6 @@ const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
       router.events.off('routeChangeError', handleRouteChangeComplete)
     }
   }, [router])
-
-  // Separate function to fetch books
-  const fetchBooks = async (
-    supabase: SupabaseClient, 
-    courseIds: string[], 
-    courses: CourseWithBooks[]
-  ): Promise<void> => {
-    try {
-      const { data: booksData, error: booksError } = await supabase
-        .from('books')
-        .select('*')
-        .in('course_id', courseIds)
-      
-      if (booksError) {
-        throw new Error(`Failed to fetch books: ${booksError.message}`)
-      }
-      
-      // Create a map of course_id to books
-      const courseToBooks = new Map<string, BookWithChapters[]>()
-      booksData.forEach((book: Book) => {
-        if (!courseToBooks.has(book.course_id)) {
-          courseToBooks.set(book.course_id, [])
-        }
-        courseToBooks.get(book.course_id)?.push({...book, chapters: []})
-      })
-      
-      // Update the courses with books
-      const updatedCourses = [...courses];
-      updatedCourses.forEach(course => {
-        course.books = courseToBooks.get(course.id) || []
-      })
-      
-      setCoursesWithContent(updatedCourses)
-      setLoadingBooks(false)
-      
-      // Extract book IDs
-      const bookIds = booksData.map((book: Book) => book.id)
-      
-      if (bookIds.length > 0) {
-        // Step 3: Fetch chapters in the background
-        setLoadingChapters(true)
-        fetchChapters(supabase, bookIds, updatedCourses)
-      }
-    } catch (error) {
-      console.error('Error fetching books:', error)
-      setLoadingBooks(false)
-    }
-  }
-  
-  // Separate function to fetch chapters
-  const fetchChapters = async (
-    supabase: SupabaseClient, 
-    bookIds: string[], 
-    courses: CourseWithBooks[]
-  ): Promise<void> => {
-    try {
-      const { data: chaptersData, error: chaptersError } = await supabase
-        .from('chapters')
-        .select('*')
-        .in('book_id', bookIds)
-        .order('order_number', { ascending: true })
-      
-      if (chaptersError) {
-        throw new Error(`Failed to fetch chapters: ${chaptersError.message}`)
-      }
-      
-      // Create a map of book_id to chapters
-      const bookToChapters = new Map<string, Chapter[]>()
-      chaptersData.forEach((chapter: Chapter) => {
-        if (!bookToChapters.has(chapter.book_id)) {
-          bookToChapters.set(chapter.book_id, [])
-        }
-        bookToChapters.get(chapter.book_id)?.push(chapter)
-      })
-      
-      // Update books with chapters
-      const finalCourses = [...courses]
-      finalCourses.forEach(course => {
-        course.books.forEach(book => {
-          book.chapters = bookToChapters.get(book.id) || []
-        })
-      })
-      
-      setCoursesWithContent(finalCourses)
-    } catch (error) {
-      console.error('Error fetching chapters:', error)
-    } finally {
-      setLoadingChapters(false)
-    }
-  }
 
   const handleSignOut = async (): Promise<void> => {
     await signOut()

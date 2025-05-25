@@ -43,19 +43,61 @@ const ViewerContainer = styled('div')`
   @media (max-width: 768px) {
     /* Increase hit areas for mobile buttons */
     .rpv-core__minimal-button {
-      min-width: 40px !important;
-      min-height: 40px !important;
+      min-width: 44px !important;
+      min-height: 44px !important;
+      font-size: 16px !important;
     }
     
     /* Make zoom buttons more prominent */
     .rpv-core__minimal-button-icon {
-      transform: scale(1.2);
+      transform: scale(1.3);
     }
     
     /* Ensure toolbar text is readable */
     .rpv-core__minimal-button-text,
     .rpv-core__page-layer-current-page-input {
-      font-size: 1rem !important;
+      font-size: 1.1rem !important;
+    }
+    
+    /* Optimize page input for mobile */
+    .rpv-core__page-layer-current-page-input {
+      min-width: 60px !important;
+      padding: 8px !important;
+    }
+    
+    /* Better spacing for mobile toolbar */
+    .rpv-toolbar__item {
+      margin: 0 4px !important;
+    }
+    
+    /* Hide sidebar on mobile for more space */
+    .rpv-core__sidebar {
+      display: none !important;
+    }
+    
+    /* Optimize page rendering for mobile */
+    .rpv-core__page-layer {
+      margin-bottom: 16px !important;
+    }
+    
+    /* Better touch scrolling on mobile */
+    .rpv-core__inner-pages {
+      -webkit-overflow-scrolling: touch !important;
+      scroll-behavior: smooth !important;
+    }
+    
+    /* Optimize page container for mobile reading */
+    .rpv-core__page-layer-canvas {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+    
+    /* Add some padding around pages on mobile */
+    .rpv-core__page-layer {
+      padding: 8px !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+      border-radius: 4px !important;
+      background: white !important;
     }
   }
 `;
@@ -161,7 +203,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl }) => {
   // Create the plugin instance with customized toolbar
   const defaultLayoutPluginInstance = defaultLayoutPlugin({
     sidebarTabs: (defaultTabs) => [
-      // Only show thumbnails in sidebar
+      // Only show thumbnails in sidebar on desktop, hide on mobile
       defaultTabs[0],
     ],
     renderToolbar: (Toolbar) => (
@@ -191,7 +233,14 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl }) => {
                 </div>
               </div>
               <div className="rpv-toolbar__center">
-                {/* Center area can be left empty or customized */}
+                {/* Add mobile-friendly zoom info */}
+                {isMobile && (
+                  <div className="rpv-toolbar__item">
+                    <Typography variant="caption" sx={{ color: 'text.secondary', px: 1 }}>
+                      Pinch to zoom
+                    </Typography>
+                  </div>
+                )}
               </div>
               <div className="rpv-toolbar__right">
                 <div className="rpv-toolbar__item">
@@ -258,7 +307,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl }) => {
         <Viewer
           fileUrl={fileUrl}
           plugins={[defaultLayoutPluginInstance]}
-          defaultScale={isMobile ? SpecialZoomLevel.PageWidth : SpecialZoomLevel.PageFit}
+          defaultScale={isMobile ? 1.5 : SpecialZoomLevel.PageFit}
           onDocumentLoad={handleDocumentLoad}
           withCredentials={true}
           renderError={(error: LoadError) => {
