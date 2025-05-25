@@ -2,137 +2,115 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
 
 interface UseDashboardLoadingOptions {
-  minLoadingTime?: number
-  autoTimeout?: number
-  onComplete?: () => void
+  minLoadingTime?: number // Minimum time to show loading (in ms)
+  maxLoadingTime?: number // Maximum time before timeout (in ms)
 }
 
 interface UseDashboardLoadingReturn {
   isLoading: boolean
-  progress: number
-  currentStep: number
-  elapsedTime: number
+  showDashboardLoading: boolean
   startLoading: () => void
-  completeLoading: () => void
+  stopLoading: () => void
+  progress: number
 }
 
-export function useDashboardLoading(options: UseDashboardLoadingOptions = {}): UseDashboardLoadingReturn {
+export const useDashboardLoading = (
+  options: UseDashboardLoadingOptions = {}
+): UseDashboardLoadingReturn => {
   const {
-    minLoadingTime = 20000, // Updated to 20 seconds
-    autoTimeout = 25000, // 25 second timeout
-    onComplete
+    minLoadingTime = 2000, // Show loading for at least 2 seconds
+    maxLoadingTime = 15000  // Timeout after 15 seconds
   } = options
 
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [showDashboardLoading, setShowDashboardLoading] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [currentStep, setCurrentStep] = useState(0)
-  const [elapsedTime, setElapsedTime] = useState(0)
   const [startTime, setStartTime] = useState<number | null>(null)
-
-  const steps = [
-    { label: 'Authentication', duration: 3000 },
-    { label: 'Environment Setup', duration: 5000 },
-    { label: 'Content Loading', duration: 7000 },
-    { label: 'Dashboard Preparation', duration: 20000 }, // Will stay loading until completion
-  ]
 
   const startLoading = useCallback(() => {
     setIsLoading(true)
+    setShowDashboardLoading(true)
     setProgress(0)
-    setCurrentStep(0)
-    setElapsedTime(0)
     setStartTime(Date.now())
   }, [])
 
-  const completeLoading = useCallback(() => {
-    const now = Date.now()
-    const elapsed = startTime ? now - startTime : 0
-    
-    if (elapsed < minLoadingTime) {
-      // Wait for minimum loading time
-      setTimeout(() => {
-        setIsLoading(false)
-        setProgress(100)
-        setCurrentStep(steps.length)
-        onComplete?.()
-      }, minLoadingTime - elapsed)
-    } else {
+  const stopLoading = useCallback(() => {
+    if (!startTime) return
+
+    const elapsedTime = Date.now() - startTime
+    const remainingTime = Math.max(0, minLoadingTime - elapsedTime)
+
+    // Ensure minimum loading time for better UX
+    setTimeout(() => {
       setIsLoading(false)
+      setShowDashboardLoading(false)
       setProgress(100)
-      setCurrentStep(steps.length)
-      onComplete?.()
-    }
-  }, [startTime, minLoadingTime, onComplete, steps.length])
+    }, remainingTime)
+  }, [startTime, minLoadingTime])
 
-  // Progress and step management
+  // Progress simulation
   useEffect(() => {
-    if (!isLoading) return
+    if (!isLoading || !startTime) return
 
-    const progressTimer = setInterval(() => {
-      setProgress(prev => {
-        const timeProgress = Math.min((elapsedTime / 20) * 100, 95) // Cap at 95% until completion
-        return Math.max(prev, timeProgress)
-      })
+    const interval = setInterval(() => {
+      const elapsedTime = Date.now() - startTime
+      const progressPercentage = Math.min((elapsedTime / maxLoadingTime) * 100, 95)
+      setProgress(progressPercentage)
     }, 100)
 
-    const timeTimer = setInterval(() => {
-      setElapsedTime(prev => prev + 1)
-    }, 1000)
+    return () => clearInterval(interval)
+  }, [isLoading, startTime, maxLoadingTime])
 
-    // Step progression
-    steps.forEach((step, index) => {
-      setTimeout(() => {
-        if (index < steps.length - 1) { // Don't auto-advance to last step
-          setCurrentStep(index + 1)
-        }
-      }, step.duration)
-    })
+  // Auto-timeout protection
+  useEffect(() => {
+    if (!isLoading || !startTime) return
 
-    // Auto-timeout
-    const timeoutTimer = setTimeout(() => {
-      completeLoading()
-    }, autoTimeout)
+    const timeout = setTimeout(() => {
+      console.warn('Dashboard loading timed out after', maxLoadingTime, 'ms')
+      setIsLoading(false)
+      setShowDashboardLoading(false)
+      setProgress(100)
+    }, maxLoadingTime)
 
-    return () => {
-      clearInterval(progressTimer)
-      clearInterval(timeTimer)
-      clearTimeout(timeoutTimer)
-    }
-  }, [isLoading, elapsedTime, completeLoading, autoTimeout])
+    return () => clearTimeout(timeout)
+  }, [isLoading, startTime, maxLoadingTime])
 
   // Handle route changes
   useEffect(() => {
-    const handleRouteChangeStart = (): void => {
-      if (router.pathname === '/dashboard') {
+    const handleRouteChangeStart = (url: string) => {
+      if (url === '/dashboard') {
         startLoading()
       }
     }
 
-    const handleRouteChangeComplete = (): void => {
-      if (router.pathname === '/dashboard') {
-        // Small delay to ensure page is fully loaded
-        setTimeout(() => {
-          completeLoading()
-        }, 1000)
+    const handleRouteChangeComplete = (url: string) => {
+      if (url === '/dashboard') {
+        stopLoading()
       }
+    }
+
+    const handleRouteChangeError = () => {
+      setIsLoading(false)
+      setShowDashboardLoading(false)
     }
 
     router.events.on('routeChangeStart', handleRouteChangeStart)
     router.events.on('routeChangeComplete', handleRouteChangeComplete)
+    router.events.on('routeChangeError', handleRouteChangeError)
 
     return () => {
       router.events.off('routeChangeStart', handleRouteChangeStart)
       router.events.off('routeChangeComplete', handleRouteChangeComplete)
+      router.events.off('routeChangeError', handleRouteChangeError)
     }
-  }, [router, startLoading, completeLoading])
+  }, [router.events, startLoading, stopLoading])
 
   return {
     isLoading,
-    progress,
-    currentStep,
-    elapsedTime,
+    showDashboardLoading,
     startLoading,
-    completeLoading
+    stopLoading,
+    progress
   }
 } 

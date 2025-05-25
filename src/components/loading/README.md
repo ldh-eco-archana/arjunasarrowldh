@@ -1,262 +1,113 @@
-# Dashboard Loading Components
+# Loading Components
 
-A comprehensive loading system designed to handle serverless cold starts and provide an engaging user experience during longer loading times.
-
-## Overview
-
-This loading system is specifically designed for applications that experience 20-second loading times due to serverless cold starts. Instead of showing a simple spinner, it provides:
-
-- **Progressive loading steps** with visual feedback
-- **Educational content** to keep users engaged
-- **Time estimation** and elapsed time tracking
-- **Mobile-responsive design**
-- **Professional appearance** that makes delays seem intentional
+This directory contains loading components designed to improve user experience during long loading times, particularly for serverless applications with cold start delays.
 
 ## Components
 
-### DashboardLoading
+### 1. DashboardLoading
 
-The main loading component that displays a 4-step loading process with educational economics facts.
+A comprehensive loading screen specifically designed for dashboard loading with 10+ second delays. Features:
 
-**Features:**
-- 4-step progressive loading (Authentication → Environment Setup → Content Loading → Dashboard Preparation)
-- 20-second estimated duration with real-time elapsed time counter
-- Rotating economics facts every 4 seconds
-- Visual progress bar and step completion indicators
-- Mobile-responsive layout
-- The last step stays in "loading" state until the page is actually ready
+- **Progressive Steps**: Shows what's happening during the loading process
+- **Time Estimation**: Displays estimated and elapsed time
+- **Educational Content**: Rotating economics facts to keep users engaged
+- **Progress Indicators**: Visual progress bar and step completion
+- **Mobile Responsive**: Adapts layout for different screen sizes
 
-**Usage:**
 ```tsx
 import DashboardLoading from '@/components/loading/dashboard-loading'
 
 <DashboardLoading 
   message="Welcome back! Setting up your dashboard..."
-  onComplete={() => {
-    // Called when loading should complete
-    // The component will mark the last step as completed
-  }}
+  onComplete={() => console.log('Loading complete')}
 />
 ```
 
-### LoadingProvider
+### 2. LoadingWithQuotes
 
-Global state management for loading across the application.
-
-**Usage:**
-```tsx
-import { LoadingProvider } from '@/components/loading/loading-provider'
-
-function App() {
-  return (
-    <LoadingProvider>
-      {/* Your app content */}
-    </LoadingProvider>
-  )
-}
-```
-
-### useDashboardLoading Hook
-
-Custom hook for managing dashboard loading state with route integration.
-
-**Features:**
-- Automatic loading on dashboard navigation
-- 20-second minimum loading time
-- 25-second auto-timeout protection
-- Progress tracking and step management
-
-**Usage:**
-```tsx
-import { useDashboardLoading } from '@/hooks/useDashboardLoading'
-
-function MyComponent() {
-  const { 
-    isLoading, 
-    progress, 
-    currentStep, 
-    elapsedTime,
-    startLoading, 
-    completeLoading 
-  } = useDashboardLoading({
-    minLoadingTime: 20000, // 20 seconds
-    autoTimeout: 25000,    // 25 seconds
-    onComplete: () => {
-      console.log('Loading completed!')
-    }
-  })
-
-  // Use the loading state in your component
-}
-```
-
-## Implementation Details
-
-### Loading Steps
-
-1. **Authentication** (3 seconds) - Verifying credentials and permissions
-2. **Environment Setup** (5 seconds) - Initializing serverless functions
-3. **Content Loading** (7 seconds) - Fetching course data
-4. **Dashboard Preparation** (20 seconds) - Stays loading until `onComplete` is called
-
-### Educational Content
-
-The component displays rotating economics facts to keep users engaged:
-- 12 different economics facts
-- Rotates every 4 seconds
-- Covers fundamental economic concepts
-- Helps users learn while waiting
-
-### UX Best Practices
-
-Based on research for handling long loading times:
-- **0.1 seconds**: Instantaneous, no indicator needed
-- **1 second**: Simple spinner sufficient  
-- **2-10 seconds**: Use looped animation with context
-- **10+ seconds**: Use progress indicators with time estimates and educational content
-
-Our 20-second loading follows the 10+ second guidelines with:
-- Clear progress indication
-- Time estimates and elapsed time
-- Educational content to reduce perceived wait time
-- Professional appearance
-
-### Mobile Responsiveness
-
-- **Desktop**: Side-by-side layout with progress on left, education on right
-- **Mobile**: Stacked layout with progress on top, education below
-- Responsive typography and spacing
-- Touch-friendly interface
-
-## Integration Examples
-
-### With AuthGuard
+A simpler loading screen with rotating educational quotes. Good for general loading scenarios.
 
 ```tsx
-import { AuthGuard } from '@/components/auth/AuthGuard'
+import LoadingWithQuotes from '@/components/loading/loading-with-quotes'
 
-<AuthGuard requireAuth={false} redirectTo="/dashboard">
-  <LoginContent />
-</AuthGuard>
+<LoadingWithQuotes message="Preparing your Economics Portal..." />
 ```
 
-### With Navigation
+### 3. LoadingProvider
+
+A context provider for managing global loading states throughout the application.
 
 ```tsx
-import { useDashboardLoading } from '@/hooks/useDashboardLoading'
+import { LoadingProvider, useLoading } from '@/components/loading/loading-provider'
 
-function Navigation() {
-  const { startLoading } = useDashboardLoading()
-  
-  const handleDashboardClick = () => {
-    startLoading()
-    router.push('/dashboard')
-  }
-}
+// Wrap your app
+<LoadingProvider>
+  <App />
+</LoadingProvider>
+
+// Use in components
+const { showLoading, hideLoading } = useLoading()
+
+showLoading('dashboard', 'Custom message')
+hideLoading()
 ```
 
-### Manual Control
+## Best Practices
 
-```tsx
-import DashboardLoading from '@/components/loading/dashboard-loading'
+### When to Use Each Component
 
-function CustomLoadingPage() {
-  const [showLoading, setShowLoading] = useState(true)
-  
-  return showLoading ? (
-    <DashboardLoading 
-      message="Preparing your experience..."
-      onComplete={() => setShowLoading(false)}
-    />
-  ) : (
-    <YourMainContent />
-  )
-}
-```
+- **DashboardLoading**: For dashboard/main app loading (10+ seconds)
+- **LoadingWithQuotes**: For general loading scenarios (2-10 seconds)
+- **Simple spinners**: For quick operations (< 2 seconds)
 
-## Customization
+### UX Guidelines
 
-### Changing Loading Duration
+Based on research from Nielsen Norman Group and other UX authorities:
 
-Update the steps array in `DashboardLoading.tsx`:
+1. **0.1 seconds**: Instantaneous - no loading indicator needed
+2. **1 second**: User notices delay - simple spinner is sufficient
+3. **2-10 seconds**: Use looped animation with context
+4. **10+ seconds**: Use progress indicators with time estimates
 
-```tsx
-const steps = [
-  { label: 'Authentication', duration: 3000 },
-  { label: 'Environment Setup', duration: 5000 },
-  { label: 'Content Loading', duration: 7000 },
-  { label: 'Dashboard Preparation', duration: 25000 }, // Adjust as needed
-]
-```
+### Implementation Tips
 
-### Adding More Facts
+1. **Always show immediate feedback** when user initiates an action
+2. **Set realistic expectations** with time estimates
+3. **Keep users engaged** with educational content during long waits
+4. **Provide escape routes** for very long operations
+5. **Test on slow connections** to ensure good experience
 
-Extend the facts array in `DashboardLoading.tsx`:
+## Serverless Cold Start Optimization
 
-```tsx
-const facts = [
-  "Your new economics fact here...",
-  // ... existing facts
-]
-```
+For Vercel/serverless applications experiencing cold starts:
 
-### Styling
+1. **Use the DashboardLoading component** for initial dashboard loads
+2. **Implement progressive loading** - show content as it becomes available
+3. **Consider warming strategies** for critical paths
+4. **Optimize bundle sizes** to reduce cold start times
+5. **Use Edge Functions** where possible for faster response
 
-The component uses Material-UI's theming system. Customize colors and styles through your theme:
+## Mobile Considerations
 
-```tsx
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#your-color',
-    },
-  },
-})
-```
+All loading components are mobile-responsive with:
 
-## Performance Considerations
-
-- Uses `setTimeout` and `setInterval` with proper cleanup
-- Minimal re-renders through optimized state management
-- Responsive images and efficient animations
-- Memory leak prevention with timer cleanup
+- Smaller text and spacing on mobile
+- Touch-friendly interactive elements
+- Optimized layouts for portrait orientation
+- Reduced animation complexity on slower devices
 
 ## Accessibility
 
-- Proper ARIA labels and roles
-- Screen reader friendly progress indicators
+Loading components include:
+
+- Proper ARIA labels for screen readers
+- High contrast colors
 - Keyboard navigation support
-- High contrast color schemes
+- Reduced motion options (respects user preferences)
 
-## Browser Support
+## Performance
 
-- Modern browsers (Chrome, Firefox, Safari, Edge)
-- Mobile browsers (iOS Safari, Chrome Mobile)
-- Responsive design for all screen sizes
-
-## Troubleshooting
-
-### Loading Never Completes
-
-Check that `onComplete` is being called properly:
-
-```tsx
-<DashboardLoading 
-  onComplete={() => {
-    console.log('Completion called') // Add this for debugging
-    // Your completion logic
-  }}
-/>
-```
-
-### Steps Not Progressing
-
-Ensure the component is properly mounted and not being unmounted/remounted during loading.
-
-### Mobile Layout Issues
-
-Check that your viewport meta tag is set correctly:
-
-```html
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-``` 
+- Components use React.memo for optimization
+- Animations are CSS-based for smooth performance
+- Timers are properly cleaned up to prevent memory leaks
+- Images and assets are optimized for fast loading 
