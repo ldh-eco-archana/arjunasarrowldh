@@ -98,16 +98,17 @@ const ELearningFeatures: FC = () => {
                   borderRadius: '20px',
                   overflow: 'hidden',
                   boxShadow: '0 5px 20px rgba(0,0,0,0.1)',
-                  maxWidth: '100%',
-                  height: 'auto',
+                  position: 'relative',
+                  width: '100%',
+                  height: { sm: 300, md: 400 },
                 }}
               >
                 <Image
                   src="/images/e-learning-portal/feature.png"
                   alt="E-Learning Features"
-                  width={500}
-                  height={400}
-                  style={{ display: 'block', width: '100%', height: 'auto' }}
+                  fill
+                  style={{ objectFit: 'cover' }}
+                  sizes="(max-width: 768px) 100vw, 500px"
                 />
               </Box>
             </Box>

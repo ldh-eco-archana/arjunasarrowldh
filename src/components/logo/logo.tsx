@@ -7,7 +7,7 @@ interface Props {
   theme?: string
 }
 
-const Logo: FC<Props> = ({ onClick, variant, theme }) => {
+const Logo: FC<Props> = ({ onClick, variant = 'primary', theme }) => {
   const isDashboardTheme = theme === 'dashboard';
   const logoColor = isDashboardTheme ? '#4c51bf' : (variant === 'primary' ? 'primary.main' : 'unset');
   
@@ -26,10 +26,6 @@ const Logo: FC<Props> = ({ onClick, variant, theme }) => {
       </Typography>
     </Box>
   )
-}
-
-Logo.defaultProps = {
-  variant: 'primary',
 }
 
 export default Logo

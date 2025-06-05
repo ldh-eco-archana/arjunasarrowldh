@@ -7,6 +7,7 @@ import { styled } from '@mui/material/styles'
 import { Content } from '@/types/database.types'
 import dynamic from 'next/dynamic'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Lazy load PDF viewers only when needed
 const PDFViewer = dynamic(() => import('@/components/content/PDFViewer'), {
@@ -43,6 +44,24 @@ const MobilePDFViewer = dynamic(() => import('@/components/content/MobilePDFView
   )
 })
 
+// Lazy load secure video player
+const SecureVideoPlayer = dynamic(() => import('@/components/content/SecureVideoPlayer'), {
+  ssr: false,
+  loading: () => (
+    <Box sx={{ 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center',
+      height: '70vh',
+      flexDirection: 'column',
+      gap: 2
+    }}>
+      <CircularProgress />
+      <Typography>Loading secure video player...</Typography>
+    </Box>
+  )
+})
+
 
 // Container for PDF content
 const PdfContainer = styled('div')`
@@ -59,13 +78,6 @@ const PdfContainer = styled('div')`
   }
 `
 
-// Styled video element
-const VideoElement = styled('video')`
-  width: 100%;
-  max-height: 70vh;
-  border-radius: ${props => props.theme.shape.borderRadius}px;
-  background-color: black;
-`
 
 interface ContentPlayerProps {
   content: Content
@@ -85,12 +97,14 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
   const [pdfUrl, setPdfUrl] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
   const { isMobile, isTablet } = useIsMobile()
+  const { user } = useAuth()
 
   const handleError = useCallback((errorMsg: string): void => {
     setError(errorMsg)
     setLoading(false)
     if (onError) onError(errorMsg)
   }, [onError]);
+
 
   // Fetch video signed URL
   const fetchVideoUrl = useCallback(async (): Promise<void> => {
@@ -104,7 +118,17 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
         return
       }
 
-      const response = await fetch(`/api/content/serve-video?id=${id}&chapterId=${chapterId}`)
+      // Get current domain to use for referer validation
+      const currentDomain = window.location.origin
+      
+      // Include security headers to prevent unauthorized access
+      const response = await fetch(`/api/content/serve-video?id=${id}&chapterId=${chapterId}`, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-Client-Origin': currentDomain,
+          'X-Client-Referer': document.referrer || currentDomain
+        }
+      })
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -115,6 +139,15 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
       const data = await response.json()
       setVideoUrl(data.url)
       setLoading(false)
+      
+      // Set a timer to refresh the URL before it expires
+      // Most signed URLs expire within 5-15 minutes
+      setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          // Only refresh if the page is visible
+          fetchVideoUrl()
+        }
+      }, 4 * 60 * 1000) // Refresh every 4 minutes
       
     } catch (err) {
       handleError('Error loading video')
@@ -158,10 +191,6 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     if (onReady) onReady();
   }, [onReady]);
 
-  const handleContentError = (): void => {
-    handleError(`${content.content_type} failed to load`);
-  };
-
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -197,20 +226,15 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     )
   }
 
-  // Render video content
+  // Render video content with secure player
   if (content.content_type === 'video' && videoUrl) {
     return (
       <Box sx={{ width: '100%' }}>
-        <VideoElement
-          src={videoUrl}
-          controls
-          playsInline
-          preload="metadata"
-          webkit-playsinline="true"
-          controlsList="nodownload noremoteplayback"
-          disablePictureInPicture
-          onError={handleContentError}
-          onLoadedData={handleContentLoaded}
+        <SecureVideoPlayer
+          url={videoUrl}
+          onError={handleError}
+          onReady={handleContentLoaded}
+          userEmail={user?.email || 'Protected Content'}
         />
       </Box>
     )

@@ -213,8 +213,15 @@ const HomeHero: FC = () => {
                 </Typography>
               </Box>
             </Box>
-            <Box sx={{ lineHeight: 0 }}>
-              <Image src="/images/hero-home.png" width={775} height={787} alt="Hero img" />
+            <Box sx={{ lineHeight: 0, position: 'relative', width: '100%', height: { xs: 350, sm: 450, md: 600 } }}>
+              <Image 
+                src="/images/hero-home.png" 
+                alt="Hero img"
+                fill
+                style={{ objectFit: 'contain' }}
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 775px"
+                priority
+              />
             </Box>
           </Grid>
         </Grid>

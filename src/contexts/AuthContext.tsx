@@ -65,12 +65,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
         setSessionToken(token)
         cacheSession(currentUser, token)
       } else {
+        // User is not authenticated, which is fine for public pages
         setUser(null)
         setSessionToken(null)
         clearSessionCache()
       }
     } catch (error) {
-      console.error('Auth refresh error:', error)
+      // Only log actual unexpected errors, not authentication errors
+      if (error instanceof Error && 
+          !error.message.includes('UserUnAuthenticatedException') &&
+          !error.message.includes('User needs to be authenticated')) {
+        console.error('Auth refresh error:', error)
+      }
       setUser(null)
       setSessionToken(null)
       clearSessionCache()

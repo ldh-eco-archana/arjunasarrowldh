@@ -109,7 +109,31 @@ const ChangePassword: NextPageWithLayout = () => {
       }
     } catch (error: unknown) {
       const err = error as Error
-      setError(err.message || 'Failed to update password')
+      const errorMessage = err.message || 'Failed to update password'
+      
+      // Map Cognito error messages to user-friendly messages
+      if (errorMessage.includes('Incorrect username or password') || 
+          errorMessage.includes('NotAuthorizedException')) {
+        setError('The current password you entered is incorrect. Please try again.')
+      } else if (errorMessage.includes('Password does not conform to policy') ||
+                 errorMessage.includes('InvalidPasswordException')) {
+        setError('Your new password does not meet the security requirements. Please ensure it has at least one uppercase letter, one lowercase letter, and one number.')
+      } else if (errorMessage.includes('LimitExceededException')) {
+        setError('Too many attempts. Please wait a few minutes and try again.')
+      } else if (errorMessage.includes('UserNotFoundException')) {
+        setError('User account not found. Please contact support.')
+      } else if (errorMessage.includes('Session expired')) {
+        setError('Your session has expired. Please log in again.')
+      } else if (errorMessage.includes('Invalid temporary password')) {
+        setError('The temporary password you entered is incorrect. Please check your email for the correct temporary password.')
+      } else if (errorMessage.includes('Network')) {
+        setError('Network error. Please check your internet connection and try again.')
+      } else {
+        // For any other errors, provide a generic but helpful message
+        setError('Unable to change password. Please verify your current password and try again.')
+      }
+      
+      console.error('Password change error:', errorMessage)
     } finally {
       setLoading(false)
     }

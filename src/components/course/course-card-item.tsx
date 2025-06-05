@@ -29,13 +29,21 @@ const CourseCardItem: FC<Props> = ({ item }) => {
       >
         <Box
           sx={{
-            lineHeight: 0,
+            position: 'relative',
+            width: '100%',
+            paddingTop: '100%', // 1:1 Aspect ratio
             overflow: 'hidden',
             borderRadius: 3,
             mb: 2,
           }}
         >
-          <Image src={item.cover} width={760} height={760} alt={'Course ' + item.id} />
+          <Image 
+            src={item.cover} 
+            alt={'Course ' + item.id}
+            fill
+            style={{ objectFit: 'cover' }}
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 33vw, 25vw"
+          />
         </Box>
         <Box sx={{ mb: 2 }}>
           <Typography component="h2" variant="h5" sx={{ mb: 2, height: 56, overflow: 'hidden', fontSize: '1.2rem' }}>

@@ -41,6 +41,7 @@ import SdIcon from '@mui/icons-material/Sd'
 import SettingsIcon from '@mui/icons-material/Settings'
 import PDFViewer from '@/components/content/PDFViewer'
 import MobilePDFViewer from '@/components/content/MobilePDFViewer'
+import SecureVideoPlayer from '@/components/content/SecureVideoPlayer'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { ResourceManagement } from '@/components/chapter/ResourceManagement'
 import { UploadResourceDialog } from '@/components/chapter/UploadResourceDialog'
@@ -519,19 +520,22 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = () => {
             }}
           >
             <Link 
-              href="/dashboard" 
+              href="/dashboard"
               passHref
-              legacyBehavior
+              style={{ 
+                textDecoration: 'none',
+                color: 'rgba(76, 81, 191, 0.8)',
+                display: 'flex',
+                alignItems: 'center',
+                fontWeight: 500,
+                transition: 'color 0.2s ease',
+              }}
             >
               <Typography
-                component="a"
                 sx={{ 
-                  textDecoration: 'none',
-                  color: 'rgba(76, 81, 191, 0.8)',
                   display: 'flex',
                   alignItems: 'center',
-                  fontWeight: 500,
-                  transition: 'color 0.2s ease',
+                  color: 'inherit',
                   '&:hover': {
                     color: '#4c51bf'
                   }
@@ -557,7 +561,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = () => {
           
           <Box sx={{ 
             mb: 4, 
-            p: 4,
+            p: { xs: 2, sm: 3, md: 4 },
             borderRadius: 4,
             background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)',
             color: 'white',
@@ -589,8 +593,8 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Box
                   sx={{
-                    width: 48,
-                    height: 48,
+                    width: { xs: 36, sm: 48 },
+                    height: { xs: 36, sm: 48 },
                     borderRadius: 2,
                     background: 'rgba(255, 255, 255, 0.2)',
                     display: 'flex',
@@ -599,7 +603,7 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = () => {
                     backdropFilter: 'blur(10px)',
                   }}
                 >
-                  <AutoStoriesIcon sx={{ fontSize: 24, color: 'white' }} />
+                  <AutoStoriesIcon sx={{ fontSize: { xs: 20, sm: 24 }, color: 'white' }} />
                 </Box>
                 <Box>
                   <Typography 
@@ -1216,18 +1220,11 @@ const ChapterPage: NextPageWithLayout<ChapterPageProps> = () => {
                             </Box>
                           )}
                         </Typography>
-                        <video
-                          src={selectedContent.signedUrl}
-                          controls
-                          style={{
-                            width: '100%',
-                            height: 'auto',
-                            borderRadius: '8px',
-                            backgroundColor: '#000'
-                          }}
-                          onLoadedData={handleContentReady}
+                        <SecureVideoPlayer
+                          url={selectedContent.signedUrl}
+                          onReady={handleContentReady}
                           onError={() => handleContentError('Failed to load video')}
-                          preload="metadata"
+                          userEmail={currentUser?.email || 'Protected Content'}
                         />
                       </Box>
                     </Box>

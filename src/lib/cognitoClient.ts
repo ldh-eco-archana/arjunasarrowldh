@@ -142,8 +142,14 @@ export const signUp = async (email: string, password: string, attributes?: Recor
 
 export const getCurrentUser = async (): Promise<User | null> => {
   try {
-    const user = await amplifyGetCurrentUser()
+    // First check if user is authenticated
     const session = await fetchAuthSession()
+    if (!session.tokens) {
+      // No tokens means user is not authenticated
+      return null
+    }
+    
+    const user = await amplifyGetCurrentUser()
     
     // Get user attributes from the ID token
     const idToken = session.tokens?.idToken
@@ -165,6 +171,17 @@ export const getCurrentUser = async (): Promise<User | null> => {
       }
     }
   } catch (error) {
+    // Check if it's specifically an authentication error
+    if (error instanceof Error) {
+      const errorMessage = error.message || error.toString()
+      if (errorMessage.includes('UserUnAuthenticatedException') || 
+          errorMessage.includes('User needs to be authenticated') ||
+          errorMessage.includes('No current user')) {
+        // This is expected when user is not logged in
+        return null
+      }
+    }
+    
     if (isDev) console.error('Error getting current user:', error)
     return null
   }

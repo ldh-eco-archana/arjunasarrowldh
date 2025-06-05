@@ -41,8 +41,15 @@ const HomeFeature: FC = () => {
       <Container>
         <Grid container spacing={3}>
           <Grid item xs={12} md={5}>
-            <Box sx={{ position: 'relative' }}>
-              <Image src="/images/home-feature.png" width={650} height={678} quality={97} alt="Feature img" />
+            <Box sx={{ position: 'relative', width: '100%', height: { xs: 400, sm: 500, md: 600 } }}>
+              <Image 
+                src="/images/home-feature.png" 
+                alt="Feature img"
+                fill
+                style={{ objectFit: 'contain' }}
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 650px"
+                priority
+              />
               <Box
                 sx={{
                   position: 'absolute',

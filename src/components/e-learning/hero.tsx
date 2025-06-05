@@ -164,8 +164,15 @@ const ELearningHero: FC = () => {
             </Box>
           </Grid>
           <Grid item xs={12} md={5} sx={{ position: 'relative' }}>
-            <Box sx={{ lineHeight: 0 }}>
-              <Image src="/images/e-learning-portal/hero.png" width={775} height={787} alt="E-learning platform" />
+            <Box sx={{ lineHeight: 0, position: 'relative', width: '100%', height: { xs: 350, sm: 450, md: 600 } }}>
+              <Image 
+                src="/images/e-learning-portal/hero.png" 
+                alt="E-learning platform"
+                fill
+                style={{ objectFit: 'contain' }}
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 775px"
+                priority
+              />
             </Box>
           </Grid>
         </Grid>
