@@ -1,7 +1,8 @@
-import React from 'react'
-import { Box, CircularProgress, Typography } from '@mui/material'
+import React, { useEffect } from 'react'
+import { CircularProgress, Typography } from '@mui/material'
 import Backdrop from '@mui/material/Backdrop'
-import { useAuthRedirect } from '@/hooks/useAuthRedirect'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/router'
 import DashboardLoading from '@/components/loading/dashboard-loading'
 
 interface AuthGuardProps {
@@ -12,8 +13,8 @@ interface AuthGuardProps {
 }
 
 /**
- * AuthGuard component for protecting routes with loading states
- * Provides a consistent loading experience across the app
+ * Optimized AuthGuard component for protecting routes with instant redirects
+ * Uses cached authentication state for immediate decisions
  */
 export function AuthGuard({ 
   children, 
@@ -21,16 +22,44 @@ export function AuthGuard({
   redirectTo = '/login',
   fallback
 }: AuthGuardProps): JSX.Element {
-  const { user, loading, checking } = useAuthRedirect({
-    redirectTo: requireAuth ? undefined : redirectTo,
-    redirectIf: requireAuth ? 'unauthenticated' : 'authenticated',
-    enabled: true
-  })
+  const { user: _user, isLoading, isAuthenticated } = useAuth()
+  const router = useRouter()
 
-  // Show loading state while checking authentication
-  if (checking || loading) {
+  useEffect(() => {
+    // Skip if still loading
+    if (isLoading) return
+
+    // Handle authentication-based redirects
+    if (requireAuth && !isAuthenticated) {
+      // Redirect unauthenticated users to login
+      router.replace(redirectTo)
+    } else if (!requireAuth && isAuthenticated && redirectTo) {
+      // Redirect authenticated users away from guest pages
+      router.replace(redirectTo)
+    }
+  }, [isLoading, isAuthenticated, requireAuth, redirectTo, router])
+
+  // Initial loading state
+  if (isLoading) {
     if (fallback) {
       return <>{fallback}</>
+    }
+
+    // For login page, show minimal loading
+    if (!requireAuth) {
+      return (
+        <Backdrop
+          sx={{ 
+            color: '#fff', 
+            zIndex: (theme) => theme.zIndex.drawer + 1,
+            flexDirection: 'column',
+            gap: 2 
+          }}
+          open={true}
+        >
+          <CircularProgress color="inherit" size={60} />
+        </Backdrop>
+      )
     }
 
     return (
@@ -45,15 +74,14 @@ export function AuthGuard({
       >
         <CircularProgress color="inherit" size={60} />
         <Typography variant="h6">
-          {requireAuth ? 'Verifying access...' : 'Checking authentication...'}
+          Loading...
         </Typography>
       </Backdrop>
     )
   }
 
-  // If we require auth but user is not authenticated, show loading
-  // (the hook will handle redirection)
-  if (requireAuth && !user) {
+  // If we require auth but user is not authenticated, show redirect message
+  if (requireAuth && !isAuthenticated) {
     return (
       <Backdrop
         sx={{ 
@@ -72,22 +100,20 @@ export function AuthGuard({
     )
   }
 
-  // If we don't require auth but user is authenticated, show enhanced dashboard loading
-  // (the hook will handle redirection)
-  if (!requireAuth && user) {
-    // Check if we're redirecting to dashboard
+  // If we don't require auth but user is authenticated, show redirect message
+  if (!requireAuth && isAuthenticated) {
+    // Special dashboard loading for login -> dashboard redirect
     if (redirectTo === '/dashboard') {
       return (
         <DashboardLoading 
           message="Welcome back! Setting up your dashboard..."
           onComplete={() => {
-            // The redirection is handled by useAuthRedirect hook
+            // Navigation is handled by useEffect above
           }}
         />
       )
     }
 
-    // For other redirects, use the generic backdrop
     return (
       <Backdrop
         sx={{ 

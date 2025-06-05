@@ -10,9 +10,10 @@ import { Menu, Close } from '@mui/icons-material'
 
 interface HeaderProps {
   isAuthenticated?: boolean
+  theme?: string
 }
 
-const Header: FC<HeaderProps> = ({ isAuthenticated = false }) => {
+const Header: FC<HeaderProps> = ({ isAuthenticated = false, theme }) => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
   const [isScrolled, setIsScrolled] = useState<boolean>(false)
   const { breakpoints } = useTheme()
@@ -58,7 +59,7 @@ const Header: FC<HeaderProps> = ({ isAuthenticated = false }) => {
             }}
             onClick={() => window.location.href = isAuthenticated ? '/dashboard' : '/'}
           >
-            <Logo />
+            <Logo theme={theme} />
           </Box>
           <Box sx={{ ml: 'auto', display: { xs: 'inline-flex', md: 'none' } }}>
             <IconButton onClick={() => setVisibleMenu(!visibleMenu)}>
@@ -88,7 +89,7 @@ const Header: FC<HeaderProps> = ({ isAuthenticated = false }) => {
             }}
           >
             {matchMobileView ? null : <Box />} {/* Magic space only for desktop */}
-            <Navigation isMobile={matchMobileView} onCloseMenu={handleCloseMenu} />
+            <Navigation isMobile={matchMobileView} onCloseMenu={handleCloseMenu} theme={theme} />
             {visibleMenu && matchMobileView && (
               <IconButton
                 sx={{

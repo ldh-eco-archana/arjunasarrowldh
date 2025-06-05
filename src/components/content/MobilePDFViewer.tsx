@@ -1,358 +1,298 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
-import { styled } from '@mui/material/styles';
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Worker, Viewer, SpecialZoomLevel } from '@react-pdf-viewer/core';
+import { pageNavigationPlugin } from '@react-pdf-viewer/page-navigation';
+import { zoomPlugin } from '@react-pdf-viewer/zoom';
 import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
-import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
+import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
-import Paper from '@mui/material/Paper';
-import Fab from '@mui/material/Fab';
-import ZoomInIcon from '@mui/icons-material/ZoomIn';
-import ZoomOutIcon from '@mui/icons-material/ZoomOut';
+import IconButton from '@mui/material/IconButton';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
-import FitScreenIcon from '@mui/icons-material/FitScreen';
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import ZoomOutIcon from '@mui/icons-material/ZoomOut';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 
-// Import the styles
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
-
-// Set up the worker
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
-
-const ViewerContainer = styled('div')`
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: auto;
-  background-color: #f5f5f5;
-  
-  /* Mobile-specific optimizations */
-  @media (max-width: 768px) {
-    height: 85vh;
-    touch-action: pan-x pan-y pinch-zoom;
-    -webkit-overflow-scrolling: touch;
-  }
-`;
-
-const PageContainer = styled('div')<{ scale: number }>`
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 16px;
-  min-height: 100%;
-  width: max-content;
-  min-width: 100%;
-  
-  /* Smooth scrolling */
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  
-  /* PDF page styling */
-  .react-pdf__Page {
-    margin-bottom: 16px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    border-radius: 4px;
-    background: white;
-    
-    /* Mobile touch optimizations */
-    @media (max-width: 768px) {
-      margin-bottom: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-  }
-  
-  .react-pdf__Page__canvas {
-    max-width: none !important;
-    height: auto !important;
-    display: block;
-    
-    /* Enable pinch zoom on mobile */
-    @media (max-width: 768px) {
-      touch-action: pinch-zoom;
-    }
-  }
-`;
-
-const ControlsContainer = styled(Paper)`
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background-color: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border-radius: 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 1000;
-  
-  @media (max-width: 768px) {
-    bottom: 16px;
-    padding: 6px 12px;
-    gap: 4px;
-  }
-`;
-
-const MobileHint = styled(Box)`
-  position: fixed;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(33, 150, 243, 0.9);
-  color: white;
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  z-index: 1000;
-  backdrop-filter: blur(8px);
-  
-  @media (min-width: 769px) {
-    display: none;
-  }
-`;
-
-const ZoomButton = styled(IconButton)`
-  background-color: rgba(255, 255, 255, 0.9);
-  color: #1976d2;
-  width: 44px;
-  height: 44px;
-  
-  &:hover {
-    background-color: rgba(255, 255, 255, 1);
-  }
-  
-  @media (max-width: 768px) {
-    width: 40px;
-    height: 40px;
-  }
-`;
+// Import styles
+import '@react-pdf-viewer/core/lib/styles/index.css';
+import '@react-pdf-viewer/page-navigation/lib/styles/index.css';
+import '@react-pdf-viewer/zoom/lib/styles/index.css';
 
 interface MobilePDFViewerProps {
   fileUrl: string;
   title?: string;
+  onContentReady?: () => void;
 }
 
-const MobilePDFViewer: React.FC<MobilePDFViewerProps> = ({ fileUrl, title }) => {
-  const [numPages, setNumPages] = useState<number>(0);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [scale, setScale] = useState<number>(1.0);
-  const [loading, setLoading] = useState<boolean>(true);
+const MobilePDFViewer: React.FC<MobilePDFViewerProps> = ({ fileUrl, onContentReady }) => {
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [initialScaleSet, setInitialScaleSet] = useState<boolean>(false);
-  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Create plugin instances
+  const pageNavigationPluginInstance = pageNavigationPlugin();
+  const zoomPluginInstance = zoomPlugin();
+  
+  const { CurrentPageInput, GoToNextPage, GoToPreviousPage } = pageNavigationPluginInstance;
+  const { ZoomIn, ZoomOut, Zoom } = zoomPluginInstance;
 
-  // Handle container resize
   useEffect(() => {
-    const updateWidth = (): void => {
-      const container = document.getElementById('pdf-container');
-      if (container) {
-        const width = container.clientWidth - 32; // Account for padding
-        setContainerWidth(width);
+    // Reset state when fileUrl changes
+    setError(null);
+    setLoading(true);
+  }, [fileUrl]);
+
+  const handleDocumentLoad = (): void => {
+    setLoading(false);
+    if (onContentReady) {
+      onContentReady();
+    }
+  };
+
+
+  // Disable right-click and keyboard shortcuts
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent): boolean => {
+      e.preventDefault();
+      return false;
+    };
+
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      // Disable Ctrl+P (print) and Ctrl+S (save)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 's')) {
+        e.preventDefault();
       }
     };
 
-    updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
+    // Override window.print
+    const originalPrint = window.print;
+    window.print = () => {
+      // Do nothing - printing is disabled
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.print = originalPrint;
+    };
   }, []);
 
-  const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-    setLoading(false);
-    setError(null);
-  }, []);
-
-  // Ensure currentPage is always valid
+  // Handle fullscreen change events
   useEffect(() => {
-    if (numPages > 0 && currentPage > numPages) {
-      setCurrentPage(numPages);
-    } else if (numPages > 0 && currentPage < 1) {
-      setCurrentPage(1);
-    }
-  }, [numPages, currentPage]);
+    const handleFullscreenChange = (): void => {
+      setIsFullScreen(!!document.fullscreenElement);
+    };
 
-  const onDocumentLoadError = useCallback((error: Error) => {
-    console.error('Error loading PDF:', error);
-    setError('Failed to load PDF document. Please try again.');
-    setLoading(false);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
   }, []);
-
-  const handleZoomIn = useCallback(() => {
-    setScale(prev => {
-      const newScale = prev + 0.25;
-      const maxScale = 3.0;
-      const finalScale = newScale <= maxScale ? newScale : maxScale;
-      console.log('Zoom in: from', prev, 'to', finalScale);
-      return finalScale;
-    });
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setScale(prev => {
-      const newScale = prev - 0.25;
-      const minScale = 0.5;
-      const finalScale = newScale >= minScale ? newScale : minScale;
-      console.log('Zoom out: from', prev, 'to', finalScale);
-      return finalScale;
-    });
-  }, []);
-
-  const handleFitToWidth = useCallback(() => {
-    if (containerWidth > 0) {
-      // Calculate fit-to-width scale based on current container width
-      const estimatedPdfWidth = 600; // Standard PDF width
-      const fitScale = Math.min(containerWidth / estimatedPdfWidth, 1.0);
-      const newScale = Math.max(fitScale, 0.5); // Don't go below 50%
-      console.log('Fit to width: setting scale to', newScale);
-      setScale(newScale);
-    } else {
-      console.log('Fit to width: resetting scale to 1.0');
-      setScale(1.0);
-    }
-  }, [containerWidth]);
-
-  const onPageLoadSuccess = useCallback((page: any) => {
-    if (!initialScaleSet && containerWidth > 0) {
-      const isMobile = window.innerWidth <= 768;
-      if (isMobile) {
-        const pageWidth = page.width;
-        const availableWidth = containerWidth;
-        const fitScale = Math.min(availableWidth / pageWidth, 1.0);
-        const initialScale = Math.max(fitScale, 0.5); // Don't go below 50%
-        console.log('Setting mobile fit-to-width scale:', initialScale, 'pageWidth:', pageWidth, 'availableWidth:', availableWidth);
-        setScale(initialScale);
-      }
-      setInitialScaleSet(true);
-    }
-  }, [initialScaleSet, containerWidth]);
-
-  const goToPrevPage = useCallback(() => {
-    console.log('goToPrevPage called, currentPage:', currentPage, 'numPages:', numPages);
-    setCurrentPage(prev => {
-      const newPage = prev - 1;
-      const validPage = newPage >= 1 ? newPage : 1;
-      console.log('Setting page from', prev, 'to', validPage);
-      return validPage;
-    });
-  }, [currentPage, numPages]);
-
-  const goToNextPage = useCallback(() => {
-    console.log('goToNextPage called, currentPage:', currentPage, 'numPages:', numPages);
-    setCurrentPage(prev => {
-      if (numPages === 0) {
-        console.log('numPages is 0, not changing page');
-        return prev;
-      }
-      const newPage = prev + 1;
-      const validPage = newPage <= numPages ? newPage : numPages;
-      console.log('Setting page from', prev, 'to', validPage);
-      return validPage;
-    });
-  }, [currentPage, numPages]);
-
-  if (error) {
-    return (
-      <Alert severity="error" sx={{ m: 2 }}>
-        {error}
-      </Alert>
-    );
-  }
 
   return (
-    <ViewerContainer>
-      {/* Loading indicator */}
+    <Box
+      ref={containerRef}
+      sx={{
+        height: '100%',
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: '#f5f5f5',
+        position: 'relative',
+        overflow: 'hidden',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect: 'none',
+        msUserSelect: 'none',
+        '& .rpv-core__viewer': {
+          '--scale-factor': '1',
+        },
+      }}
+    >
       {loading && (
-        <Box 
-          sx={{ 
+        <Box
+          sx={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 10,
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
             alignItems: 'center',
-            backgroundColor: 'rgba(255,255,255,0.8)',
-            zIndex: 999,
-            gap: 2
+            gap: 2,
           }}
         >
-          <CircularProgress size={60} />
-          <Typography variant="h6">Loading PDF...</Typography>
+          <CircularProgress size={40} sx={{ color: '#4c51bf' }} />
+          <Typography variant="body2" color="text.secondary">
+            Loading PDF...
+          </Typography>
         </Box>
       )}
 
-      {/* PDF Document */}
-      <PageContainer scale={scale} id="pdf-container">
-        <Document
-          file={fileUrl}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          loading={null}
-        >
-          <Page
-            pageNumber={Math.max(1, Math.min(currentPage, numPages || 1))}
-            scale={scale}
-            loading={null}
-            renderTextLayer={true}
-            renderAnnotationLayer={true}
-            onLoadSuccess={onPageLoadSuccess}
-          />
-        </Document>
-      </PageContainer>
-
-      {/* Controls */}
-      {!loading && numPages > 0 && (
-        <ControlsContainer elevation={3}>
-          {/* Navigation */}
-          <ZoomButton 
-            onClick={goToPrevPage} 
-            disabled={currentPage <= 1 || loading}
-            size="small"
-          >
-            <NavigateBeforeIcon />
-          </ZoomButton>
-          
-          <Typography variant="body2" sx={{ minWidth: '60px', textAlign: 'center' }}>
-            {currentPage} / {numPages}
-          </Typography>
-          
-          <ZoomButton 
-            onClick={goToNextPage} 
-            disabled={currentPage >= numPages || numPages === 0 || loading}
-            size="small"
-          >
-            <NavigateNextIcon />
-          </ZoomButton>
-
-          {/* Divider */}
-          <Box sx={{ width: '1px', height: '24px', backgroundColor: '#ddd', mx: 1 }} />
-
-          {/* Zoom controls */}
-          <ZoomButton onClick={handleZoomOut} disabled={scale <= 0.5} size="small">
-            <ZoomOutIcon />
-          </ZoomButton>
-          
-          <Typography variant="body2" sx={{ minWidth: '50px', textAlign: 'center' }}>
-            {Math.round(scale * 100)}%
-          </Typography>
-          
-          <ZoomButton onClick={handleZoomIn} disabled={scale >= 3.0} size="small">
-            <ZoomInIcon />
-          </ZoomButton>
-          
-          <ZoomButton onClick={handleFitToWidth} size="small" title="Fit to screen width">
-            <FitScreenIcon />
-          </ZoomButton>
-        </ControlsContainer>
+      {error && (
+        <Alert severity="error" sx={{ m: 2 }}>
+          {error}
+        </Alert>
       )}
-    </ViewerContainer>
+
+      {!error && fileUrl && (
+        <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
+          <Box sx={{ flex: 1, overflow: 'hidden' }}>
+            <Viewer
+              fileUrl={fileUrl}
+              defaultScale={SpecialZoomLevel.PageWidth}
+              plugins={[pageNavigationPluginInstance, zoomPluginInstance]}
+              onDocumentLoad={handleDocumentLoad}
+            />
+          </Box>
+          
+          {/* Navigation Controls */}
+          {!loading && !error && (
+            <Box
+              sx={{
+                position: 'sticky',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: 'white',
+                borderTop: '1px solid rgba(0, 0, 0, 0.12)',
+                p: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+                zIndex: 10,
+              }}
+            >
+              {/* Navigation row */}
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                gap: 2 
+              }}>
+                <GoToPreviousPage>
+                  {(props: any) => (
+                    <IconButton
+                      onClick={props.onClick}
+                      disabled={props.isDisabled}
+                      sx={{
+                        backgroundColor: 'rgba(76, 81, 191, 0.1)',
+                        '&:hover': {
+                          backgroundColor: 'rgba(76, 81, 191, 0.2)',
+                        },
+                        '&:disabled': {
+                          backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                        },
+                      }}
+                    >
+                      <NavigateBeforeIcon />
+                    </IconButton>
+                  )}
+                </GoToPreviousPage>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2">Page</Typography>
+                  <CurrentPageInput />
+                </Box>
+
+                <GoToNextPage>
+                  {(props: any) => (
+                    <IconButton
+                      onClick={props.onClick}
+                      disabled={props.isDisabled}
+                      sx={{
+                        backgroundColor: 'rgba(76, 81, 191, 0.1)',
+                        '&:hover': {
+                          backgroundColor: 'rgba(76, 81, 191, 0.2)',
+                        },
+                        '&:disabled': {
+                          backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                        },
+                      }}
+                    >
+                      <NavigateNextIcon />
+                    </IconButton>
+                  )}
+                </GoToNextPage>
+
+                {/* Fullscreen button */}
+                <IconButton
+                  onClick={() => {
+                    if (!document.fullscreenElement && containerRef.current) {
+                      containerRef.current.requestFullscreen();
+                    } else if (document.exitFullscreen) {
+                      document.exitFullscreen();
+                    }
+                  }}
+                  sx={{
+                    backgroundColor: 'rgba(76, 81, 191, 0.1)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(76, 81, 191, 0.2)',
+                    },
+                  }}
+                >
+                  {isFullScreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                </IconButton>
+              </Box>
+
+              {/* Zoom controls row */}
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                gap: 2,
+                pb: 1
+              }}>
+                <ZoomOut>
+                  {(props: any) => (
+                    <IconButton
+                      onClick={props.onClick}
+                      size="small"
+                      sx={{
+                        backgroundColor: 'rgba(76, 81, 191, 0.1)',
+                        '&:hover': {
+                          backgroundColor: 'rgba(76, 81, 191, 0.2)',
+                        },
+                      }}
+                    >
+                      <ZoomOutIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </ZoomOut>
+                
+                <Zoom />
+                
+                <ZoomIn>
+                  {(props: any) => (
+                    <IconButton
+                      onClick={props.onClick}
+                      size="small"
+                      sx={{
+                        backgroundColor: 'rgba(76, 81, 191, 0.1)',
+                        '&:hover': {
+                          backgroundColor: 'rgba(76, 81, 191, 0.2)',
+                        },
+                      }}
+                    >
+                      <ZoomInIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </ZoomIn>
+              </Box>
+            </Box>
+          )}
+        </Worker>
+      )}
+    </Box>
   );
 };
 
-export default MobilePDFViewer; 
+export default MobilePDFViewer;

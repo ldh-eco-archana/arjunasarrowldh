@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import { GetServerSideProps } from 'next'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
 import Head from 'next/head'
@@ -15,21 +14,27 @@ import InputAdornment from '@mui/material/InputAdornment'
 import LockIcon from '@mui/icons-material/Lock'
 import CircularProgress from '@mui/material/CircularProgress'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
-import { createClient } from '@/utils/supabase/client'
-import { getSafeUser } from '@/utils/supabase/server'
+import { updatePassword, signIn } from '@/lib/cognitoClient'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/router'
+import { confirmSignIn } from 'aws-amplify/auth'
 
-interface ChangePasswordProps {
-  email: string;
-  error?: string;
-}
+// No props needed for this component
 
-const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error: serverError }) => {
+const ChangePassword: NextPageWithLayout = () => {
+  const router = useRouter()
+  const { user: _currentUser, isLoading } = useAuth()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(serverError || '')
+  const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  
+  // Check if this is a first-time user who needs to change password
+  const isFirstTimeUser = router.query.firstTime === 'true'
+
+  // Authentication is handled by AuthGuard
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -41,8 +46,8 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
       return
     }
 
-    if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters long')
+    if (newPassword.length !== 8) {
+      setError('Password must be exactly 8 characters long')
       return
     }
 
@@ -54,41 +59,73 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
     setLoading(true)
 
     try {
-      // Update the user's password using the new client
-      const supabase = createClient()
-      
-      // First sign in with the current password
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: currentPassword
-      })
-      
-      if (signInError) {
-        throw new Error('Current password is incorrect')
+      if (isFirstTimeUser) {
+        // For first-time users, we need to complete the NEW_PASSWORD_REQUIRED challenge
+        const tempEmail = sessionStorage.getItem('tempEmail')
+        if (!tempEmail) {
+          throw new Error('Session expired. Please login again.')
+        }
+        
+        // First sign in to get the challenge
+        const signInResult = await signIn(tempEmail, currentPassword)
+        
+        if (signInResult.data?.session && typeof signInResult.data.session === 'object') {
+          const session = signInResult.data.session as any
+          
+          // Complete the NEW_PASSWORD_REQUIRED challenge
+          if (session.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+            await confirmSignIn({ challengeResponse: newPassword })
+            setSuccess(true)
+            
+            // Clear session storage
+            sessionStorage.removeItem('tempEmail')
+            
+            // Redirect to dashboard after successful password change
+            setTimeout(() => {
+              window.location.href = '/dashboard'
+            }, 2000)
+          }
+        } else {
+          throw new Error('Invalid temporary password')
+        }
+      } else {
+        // Regular password update for existing users
+        const { error: updateError, success } = await updatePassword(currentPassword, newPassword)
+        
+        if (updateError) {
+          throw updateError
+        }
+        
+        if (success) {
+          setSuccess(true)
+          
+          // Clear form
+          setCurrentPassword('')
+          setNewPassword('')
+          setConfirmPassword('')
+        } else {
+          throw new Error('Failed to update password')
+        }
       }
-      
-      // Then update the password
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword
-      })
-      
-      if (updateError) {
-        throw updateError
-      }
-      
-      setSuccess(true)
-      
-      // Clear form
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      
     } catch (error: unknown) {
       const err = error as Error
       setError(err.message || 'Failed to update password')
     } finally {
       setLoading(false)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
+        <Container maxWidth="lg">
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
+            <CircularProgress size={60} sx={{ mb: 2, color: '#4c51bf' }} />
+            <Typography variant="h6">Loading...</Typography>
+          </Box>
+        </Container>
+      </Box>
+    )
   }
 
   return (
@@ -103,10 +140,23 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
       <Box sx={{ py: 6, backgroundColor: 'background.default' }}>
         <Container maxWidth="sm">
           <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 4 }}>
-            Change Password
+            {isFirstTimeUser ? 'Set Your New Password' : 'Change Password'}
           </Typography>
           
-          <Card sx={{ borderRadius: 3, boxShadow: 5, p: { xs: 2, sm: 3 } }}>
+          {isFirstTimeUser && (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              Welcome! Please set a new password to access your account. Your password must be exactly 8 characters long.
+            </Alert>
+          )}
+          
+          <Card sx={{ 
+            borderRadius: 4, 
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%)',
+            backdropFilter: 'blur(10px)',
+            p: { xs: 2, sm: 3 } 
+          }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               {error && (
                 <Alert severity="error" sx={{ mb: 3 }}>
@@ -116,7 +166,9 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
               
               {success && (
                 <Alert severity="success" sx={{ mb: 3 }}>
-                  Your password has been successfully updated!
+                  {isFirstTimeUser 
+                    ? 'Your password has been successfully set! Redirecting to dashboard...' 
+                    : 'Your password has been successfully updated!'}
                 </Alert>
               )}
               
@@ -126,7 +178,7 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
                   required
                   fullWidth
                   name="currentPassword"
-                  label="Current Password"
+                  label={isFirstTimeUser ? "Temporary Password" : "Current Password"}
                   type="password"
                   id="currentPassword"
                   autoComplete="current-password"
@@ -136,7 +188,7 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <VpnKeyIcon color="primary" />
+                        <VpnKeyIcon sx={{ color: '#4c51bf' }} />
                       </InputAdornment>
                     ),
                   }}
@@ -158,11 +210,11 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <LockIcon color="primary" />
+                        <LockIcon sx={{ color: '#4c51bf' }} />
                       </InputAdornment>
                     ),
                   }}
-                  helperText="Password must be at least 6 characters long"
+                  helperText="Password must be exactly 8 characters long"
                   sx={{ mb: 2 }}
                 />
                 
@@ -181,7 +233,7 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <LockIcon color={confirmPassword === newPassword && newPassword ? 'success' : 'primary'} />
+                        <LockIcon sx={{ color: confirmPassword === newPassword && newPassword ? '#10b981' : '#4c51bf' }} />
                       </InputAdornment>
                     ),
                   }}
@@ -195,7 +247,15 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
                   variant="contained"
                   color="primary"
                   size="large"
-                  sx={{ width: '100%', mt: 3, mb: 2 }}
+                  sx={{ 
+                    width: '100%', 
+                    mt: 3, 
+                    mb: 2,
+                    background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #3b3f8f 0%, #5570e8 100%)',
+                    }
+                  }}
                   disabled={loading || success}
                 >
                   {loading ? <CircularProgress size={24} color="inherit" /> : 'Update Password'}
@@ -209,36 +269,7 @@ const ChangePassword: NextPageWithLayout<ChangePasswordProps> = ({ email, error:
   )
 }
 
-export const getServerSideProps: GetServerSideProps<ChangePasswordProps> = async (context) => {
-  try {
-    // Fast authentication check using JWT verification
-    const { data: safeUser, error: authError } = await getSafeUser(context);
 
-    if (authError || !safeUser) {
-      return {
-        redirect: {
-          destination: '/login',
-          permanent: false,
-        },
-      };
-    }
-
-    return {
-      props: {
-        email: safeUser.email || '',
-      },
-    };
-  } catch (error) {
-    console.error('Server-side error:', error);
-    return {
-      redirect: {
-        destination: '/login',
-        permanent: false,
-      }
-    };
-  }
-};
-
-ChangePassword.getLayout = (page) => <MainLayout>{page}</MainLayout>
+ChangePassword.getLayout = (page) => <MainLayout isAuthenticated={true} theme="dashboard">{page}</MainLayout>
 
 export default ChangePassword 

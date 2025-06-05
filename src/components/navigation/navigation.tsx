@@ -11,9 +11,10 @@ import { useSignOut } from '@/hooks/useSignOut'
 interface NavigationProps {
   isMobile?: boolean;
   onCloseMenu?: () => void;
+  theme?: string;
 }
 
-const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
+const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu, theme }) => {
   const router = useRouter();
   const { signOut } = useSignOut();
   const isELearningRelatedPage = 
@@ -28,6 +29,11 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
     router.pathname === '/profile' || 
     router.pathname === '/change-password' ||
     router.pathname.startsWith('/chapter/');
+
+  // Dashboard theme colors - only for specific authenticated pages
+  const isDashboardTheme = theme === 'dashboard';
+  const textColor = isDashboardTheme ? 'rgba(76, 81, 191, 0.7)' : 'text.disabled';
+  const activeColor = isDashboardTheme ? '#4c51bf' : 'primary.main';
   
   const handleLinkClick = (): void => {
     if (isMobile && onCloseMenu) {
@@ -71,7 +77,7 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
           onClick={handleDashboardClick}
           sx={{
             position: 'relative',
-            color: router.pathname === '/dashboard' ? 'primary.main' : 'text.disabled',
+            color: router.pathname === '/dashboard' ? activeColor : textColor,
             cursor: 'pointer',
             fontWeight: 600,
             display: 'inline-flex',
@@ -85,7 +91,7 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
             border: 'none',
             '& > div': { display: 'none' },
             '&:hover': {
-              color: 'primary.main',
+              color: activeColor,
               '&>div': {
                 display: 'block',
               },
@@ -107,12 +113,12 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
           Dashboard
         </Box>
         
-        <Link href="/profile" passHref>
+        <Link href="/profile" passHref legacyBehavior>
           <Box
             component="a"
             sx={{
               position: 'relative',
-              color: router.pathname === '/profile' ? 'primary.main' : 'text.disabled',
+              color: router.pathname === '/profile' ? activeColor : textColor,
               cursor: 'pointer',
               fontWeight: 600,
               display: 'inline-flex',
@@ -124,7 +130,7 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
               textDecoration: 'none',
               '& > div': { display: 'none' },
               '&:hover': {
-                color: 'primary.main',
+                color: activeColor,
                 '&>div': {
                   display: 'block',
                 },
@@ -148,12 +154,12 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
           </Box>
         </Link>
         
-        <Link href="/change-password" passHref>
+        <Link href="/change-password" passHref legacyBehavior>
           <Box
             component="a"
             sx={{
               position: 'relative',
-              color: router.pathname === '/change-password' ? 'primary.main' : 'text.disabled',
+              color: router.pathname === '/change-password' ? activeColor : textColor,
               cursor: 'pointer',
               fontWeight: 600,
               display: 'inline-flex',
@@ -165,7 +171,7 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
               textDecoration: 'none',
               '& > div': { display: 'none' },
               '&:hover': {
-                color: 'primary.main',
+                color: activeColor,
                 '&>div': {
                   display: 'block',
                 },
@@ -191,16 +197,19 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
         
         <Button
           variant="text"
-          color="primary"
-          startIcon={<LogoutIcon />}
-          onClick={handleSignOut}
           sx={{
             ml: { xs: 0, md: 2 },
             mt: { xs: 1, md: 0 },
             whiteSpace: 'nowrap',
             fontWeight: 600,
             fontSize: { xs: '1.2rem', md: 'inherit' },
+            color: isDashboardTheme ? '#4c51bf' : 'primary.main',
+            '&:hover': {
+              backgroundColor: isDashboardTheme ? 'rgba(76, 81, 191, 0.08)' : undefined,
+            },
           }}
+          startIcon={<LogoutIcon sx={{ color: isDashboardTheme ? '#4c51bf' : undefined }} />}
+          onClick={handleSignOut}
         >
           Sign Out
         </Button>
@@ -227,7 +236,7 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
         // When on e-learning portal related pages, Home should link back to homepage
         if (destination === '#' && isELearningRelatedPage) {
           return (
-            <Link href="/" key={destination} passHref>
+            <Link href="/" key={destination} passHref legacyBehavior>
               <Box
                 component="a"
                 sx={{
@@ -272,7 +281,7 @@ const Navigation: FC<NavigationProps> = ({ isMobile, onCloseMenu }) => {
         // E-learning portal link
         if (destination === 'e-learning-portal') {
           return (
-            <Link href={`/${destination}`} key={destination} passHref>
+            <Link href={`/${destination}`} key={destination} passHref legacyBehavior>
               <Box
                 component="a"
                 sx={{

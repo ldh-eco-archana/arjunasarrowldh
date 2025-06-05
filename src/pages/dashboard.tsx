@@ -1,700 +1,792 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { GetServerSideProps } from 'next'
+import React, { useState } from 'react'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
+import { AuthGuard } from '@/components/auth/AuthGuard'
 import Head from 'next/head'
-import Box from '@mui/material/Box'
-import Container from '@mui/material/Container'
-import Typography from '@mui/material/Typography'
-import { useRouter } from 'next/router'
-import Button from '@mui/material/Button'
+import { 
+  Box, 
+  Container, 
+  Typography, 
+  Paper, 
+  Button,
+  Chip
+} from '@mui/material'
 import LogoutIcon from '@mui/icons-material/Logout'
-import { User, Course, Book, Chapter } from '@/types/database.types'
-import Tabs from '@mui/material/Tabs'
-import Tab from '@mui/material/Tab'
-import Paper from '@mui/material/Paper'
-import { createClient as createClientBrowser } from '@/utils/supabase/client'
-import { getSafeUser } from '@/utils/supabase/server'
-import Alert from '@mui/material/Alert'
-import Card from '@mui/material/Card'
-import CardContent from '@mui/material/CardContent'
-import CardMedia from '@mui/material/CardMedia'
-import Grid from '@mui/material/Grid'
-import Accordion from '@mui/material/Accordion'
-import AccordionSummary from '@mui/material/AccordionSummary'
-import AccordionDetails from '@mui/material/AccordionDetails'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import MenuBookIcon from '@mui/icons-material/MenuBook'
-import AutoStoriesIcon from '@mui/icons-material/AutoStories'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import CircularProgress from '@mui/material/CircularProgress'
-import Chip from '@mui/material/Chip'
-import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemIcon from '@mui/material/ListItemIcon'
-import ListItemText from '@mui/material/ListItemText'
-import ListItemButton from '@mui/material/ListItemButton'
-import Skeleton from '@mui/material/Skeleton'
-import Fade from '@mui/material/Fade'
-import { SupabaseClient } from '@supabase/supabase-js'
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import { useSignOut } from '@/hooks/useSignOut'
+import { useAuth } from '@/contexts/AuthContext'
+import { TabPanel } from '@/components/dashboard/common/TabPanel'
+import { DashboardTabs } from '@/components/dashboard/DashboardTabs'
+import { CoursesTab } from '@/components/dashboard/tabs/CoursesTab'
+import { NotificationsTab } from '@/components/dashboard/tabs/NotificationsTab'
+import { UsersTab } from '@/components/dashboard/tabs/UsersTab'
+import { GroupsTab } from '@/components/dashboard/tabs/GroupsTab'
+import { InviteUserDialog } from '@/components/dashboard/dialogs/InviteUserDialog'
+import { UserDetailsDialog } from '@/components/dashboard/dialogs/UserDetailsDialog'
+import { GroupManagementDialog } from '@/components/dashboard/dialogs/GroupManagementDialog'
+import { NotificationDialog } from '@/components/dashboard/dialogs/NotificationDialog'
+import { DeleteNotificationDialog } from '@/components/dashboard/dialogs/DeleteNotificationDialog'
+import { ManageAttachmentsDialog } from '@/components/dashboard/dialogs/ManageAttachmentsDialog'
+import { CreateBookDialog } from '@/components/dashboard/dialogs/CreateBookDialog'
+import { CreateChapterDialog } from '@/components/dashboard/dialogs/CreateChapterDialog'
+import { useNotificationManagement } from '@/hooks/dashboard/useNotificationManagement'
+import { useCourses } from '@/hooks/dashboard/useCourses'
+import { useUsers } from '@/hooks/dashboard/useUsers'
+import { useGroups } from '@/hooks/dashboard/useGroups'
+import { useNotifications } from '@/hooks/dashboard/useNotifications'
+import { User, Notification } from '@/components/dashboard/types'
 
-interface TabPanelProps {
-  children?: React.ReactNode
-  index: number
-  value: number
-}
-
-interface DashboardProps {
-  user: User | null
-  error?: string
-}
-
-interface CourseWithBooks extends Course {
-  books: BookWithChapters[];
-  progress: number;
-}
-
-interface BookWithChapters extends Book {
-  chapters: Chapter[];
-}
-
-function TabPanel(props: TabPanelProps): JSX.Element {
-  const { children, value, index, ...other } = props
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`dashboard-tabpanel-${index}`}
-      aria-labelledby={`dashboard-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  )
-}
-
-function a11yProps(index: number): { id: string; 'aria-controls': string } {
-  return {
-    id: `dashboard-tab-${index}`,
-    'aria-controls': `dashboard-tabpanel-${index}`,
-  }
-}
-
-const Dashboard: NextPageWithLayout<DashboardProps> = ({ user, error }) => {
-  const router = useRouter()
+const Dashboard: NextPageWithLayout = () => {
   const { signOut } = useSignOut()
+  const { user } = useAuth()
   const [tabValue, setTabValue] = useState(0)
-  const [sessionStatus, setSessionStatus] = useState<string | null>(null)
-  const [coursesWithContent, setCoursesWithContent] = useState<CourseWithBooks[]>([])
-  const [loadingCourses, setLoadingCourses] = useState(true)
-  const [loadingBooks, setLoadingBooks] = useState(false)
-  const [loadingChapters, setLoadingChapters] = useState(false)
-  const [expanded, setExpanded] = useState<string | false>(false)
-  const [loadingError, setLoadingError] = useState<string | null>(null)
-  const [navigatingToChapter, setNavigatingToChapter] = useState<string | null>(null)
 
-  // Separate function to fetch chapters
-  const fetchChapters = useCallback(async (
-    supabase: SupabaseClient, 
-    bookIds: string[], 
-    courses: CourseWithBooks[]
-  ): Promise<void> => {
-    try {
-      const { data: chaptersData, error: chaptersError } = await supabase
-        .from('chapters')
-        .select('*')
-        .in('book_id', bookIds)
-        .order('order_number', { ascending: true })
-      
-      if (chaptersError) {
-        throw new Error(`Failed to fetch chapters: ${chaptersError.message}`)
-      }
-      
-      // Create a map of book_id to chapters
-      const bookToChapters = new Map<string, Chapter[]>()
-      chaptersData.forEach((chapter: Chapter) => {
-        if (!bookToChapters.has(chapter.book_id)) {
-          bookToChapters.set(chapter.book_id, [])
-        }
-        bookToChapters.get(chapter.book_id)?.push(chapter)
-      })
-      
-      // Update books with chapters
-      const finalCourses = [...courses]
-      finalCourses.forEach(course => {
-        course.books.forEach(book => {
-          book.chapters = bookToChapters.get(book.id) || []
-        })
-      })
-      
-      setCoursesWithContent(finalCourses)
-    } catch (error) {
-      console.error('Error fetching chapters:', error)
-    } finally {
-      setLoadingChapters(false)
-    }
-  }, [])
+  // Use custom hooks
+  const { 
+    coursesWithContent, 
+    loadingCourses, 
+    loadingError, 
+    isAdmin,
+    createBook,
+    updateBookTitle,
+    createChapter,
+    updateChapterTitle
+  } = useCourses(user)
+  const { 
+    users, 
+    loadingUsers, 
+    usersError, 
+    studentCount,
+    loadUsers,
+    getUserDetails,
+    inviteUser,
+    updateUserDetails,
+    resetUserPassword,
+    setTemporaryPassword
+  } = useUsers(user, isAdmin)
+  const { 
+    availableGroups,
+    loadingGroups,
+    groupError,
+    loadAvailableGroups,
+    addUserToGroup,
+    removeUserFromGroup,
+    loadGroupsData,
+    loadGroupUsers
+  } = useGroups()
+  const [loadingGroupUsers, setLoadingGroupUsers] = useState(false)
+  
+  // Notification state - initialize with empty string
+  const [selectedNotificationCourseId, setSelectedNotificationCourseId] = useState<string>('')
+  
+  // Derive the actual course ID for notifications
+  const notificationCourseId = selectedNotificationCourseId || (coursesWithContent.length > 0 ? coursesWithContent[0].id : '')
 
-  // Separate function to fetch books
-  const fetchBooks = useCallback(async (
-    supabase: SupabaseClient, 
-    courseIds: string[], 
-    courses: CourseWithBooks[]
-  ): Promise<void> => {
-    try {
-      const { data: booksData, error: booksError } = await supabase
-        .from('books')
-        .select('*')
-        .in('course_id', courseIds)
-      
-      if (booksError) {
-        throw new Error(`Failed to fetch books: ${booksError.message}`)
-      }
-      
-      // Create a map of course_id to books
-      const courseToBooks = new Map<string, BookWithChapters[]>()
-      booksData.forEach((book: Book) => {
-        if (!courseToBooks.has(book.course_id)) {
-          courseToBooks.set(book.course_id, [])
-        }
-        courseToBooks.get(book.course_id)?.push({...book, chapters: []})
-      })
-      
-      // Update the courses with books
-      const updatedCourses = [...courses];
-      updatedCourses.forEach(course => {
-        course.books = courseToBooks.get(course.id) || []
-      })
-      
-      setCoursesWithContent(updatedCourses)
-      setLoadingBooks(false)
-      
-      // Extract book IDs
-      const bookIds = booksData.map((book: Book) => book.id)
-      
-      if (bookIds.length > 0) {
-        // Step 3: Fetch chapters in the background
-        setLoadingChapters(true)
-        fetchChapters(supabase, bookIds, updatedCourses)
-      }
-    } catch (error) {
-      console.error('Error fetching books:', error)
-      setLoadingBooks(false)
-    }
-  }, [fetchChapters])
+  // State for available classes and boards for filtering
+  const [availableClasses, setAvailableClasses] = useState<string[]>([])
+  const [availableBoards, setAvailableBoards] = useState<string[]>([])
 
-  // Split the fetching into multiple steps for progressive loading
-  const fetchCourseStructure = useCallback(async (userId: string): Promise<void> => {
-    setLoadingCourses(true)
-    setLoadingError(null)
-    
-    try {
-      const supabase = createClientBrowser()
-      
-      // Step 1: Fetch user enrolled courses first
-      const { data: userCoursesData, error: userCoursesError } = await supabase
-        .from('user_courses')
-        .select(`
-          id,
-          progress,
-          courses:course_id (
-            id,
-            name,
-            description,
-            board,
-            class,
-            cover_image_url,
-            created_at,
-            updated_at
-          )
-        `)
-        .eq('user_id', userId)
-      
-      if (userCoursesError) {
-        throw new Error(`Failed to fetch courses: ${userCoursesError.message}`)
-      }
-      
-      if (!userCoursesData || userCoursesData.length === 0) {
-        setCoursesWithContent([])
-        setLoadingCourses(false)
-        return
-      }
-      
-      // Extract course IDs and validate nested structure
-      const courseIds = userCoursesData.map(uc => {
-        // Check if courses is an array with at least one element or a single object
-        const course = Array.isArray(uc.courses) ? uc.courses[0] : uc.courses;
-        if (!course) {
-          console.error("Course data structure is invalid", uc);
-          return null;
-        }
-        return course.id;
-      }).filter(Boolean) as string[];
-      
-      // Create a map for progress
-      const progressMap = new Map();
-      userCoursesData.forEach(uc => {
-        const course = Array.isArray(uc.courses) ? uc.courses[0] : uc.courses;
-        if (course) {
-          progressMap.set(course.id, uc.progress);
-        }
-      });
-      
-      // Prepare courses with their data
-      const courses: CourseWithBooks[] = userCoursesData.map(uc => {
-        const course = Array.isArray(uc.courses) ? uc.courses[0] : uc.courses;
-        if (!course) return null;
-        
-        return {
-          ...course,
-          progress: progressMap.get(course.id) || 0,
-          books: [] as BookWithChapters[]
-        };
-      }).filter(Boolean) as CourseWithBooks[];
-      
-      // Show courses immediately
-      setCoursesWithContent(courses);
-      setLoadingCourses(false);
-      
-      // Step 2: Fetch books in the background
-      setLoadingBooks(true);
-      fetchBooks(supabase, courseIds, courses);
-      
-    } catch (error) {
-      console.error('Error fetching course content:', error)
-      setLoadingError((error as Error).message)
-      setLoadingCourses(false)
-    }
-  }, [fetchBooks]);
+  const {
+    notifications,
+    loadingNotifications,
+    notificationsError,
+    notificationsPagination,
+    refreshing,
+    lastRefresh,
+    handleAttachmentDownload,
+    handleRefreshNotifications,
+    handleLoadMore
+  } = useNotifications(user, tabValue, notificationCourseId, isAdmin)
 
-  const checkSession = useCallback(async (): Promise<void> => {
-    // Verify session on client-side as well
-    const supabase = createClientBrowser()
-    const { data, error } = await supabase.auth.getSession()
-    
-    if (error || !data.session) {
-      setSessionStatus('No valid session found. Redirecting...')
-      setTimeout(() => {
-        router.push('/login')
-      }, 2000)
-    } else {
-      setSessionStatus('Session valid')
-    }
-  }, [router])
+  // Notification management hook
+  const {
+    getUploadUrls,
+    createNotification,
+    updateNotification,
+    deleteNotification,
+    removeAllAttachments,
+    removeAttachment
+  } = useNotificationManagement()
 
-  useEffect(() => {
-    checkSession()
-  }, [checkSession])
+  // Dialog states
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
+  const [inviteFormData, setInviteFormData] = useState({
+    email: '',
+    givenName: '',
+    familyName: '',
+    groupName: ''
+  })
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (user?.id && tabValue === 0) {
-      fetchCourseStructure(user.id)
-    }
-  }, [user, tabValue, fetchCourseStructure])
+  // User details dialog
+  const [userDetailsOpen, setUserDetailsOpen] = useState(false)
+  const [selectedUserDetails, setSelectedUserDetails] = useState<User | null>(null)
+  const [editMode, setEditMode] = useState(false)
+  const [editFormData, setEditFormData] = useState({
+    email: '',
+    givenName: '',
+    familyName: ''
+  })
+  const [updateLoading, setUpdateLoading] = useState(false)
+  const [updateError, setUpdateError] = useState<string | null>(null)
 
-  // Clear navigation state on route changes
-  useEffect(() => {
-    const handleRouteChangeComplete = (): void => {
-      setNavigatingToChapter(null)
-    }
+  // Group management dialog
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false)
+  const [selectedGroup, setSelectedGroup] = useState('')
+  const [groupLoading, setGroupLoading] = useState(false)
 
-    router.events.on('routeChangeComplete', handleRouteChangeComplete)
-    router.events.on('routeChangeError', handleRouteChangeComplete)
+  // Groups tab state
+  const [groupsData, setGroupsData] = useState<any[]>([])
+  const [loadingGroupsData, setLoadingGroupsData] = useState(false)
+  const [groupsDataError, setGroupsDataError] = useState<string | null>(null)
+  const [selectedGroupDetails, setSelectedGroupDetails] = useState<any | null>(null)
+  const [groupUsersData, setGroupUsersData] = useState<any[]>([])
 
-    return () => {
-      router.events.off('routeChangeComplete', handleRouteChangeComplete)
-      router.events.off('routeChangeError', handleRouteChangeComplete)
-    }
-  }, [router])
+  // Notification dialog states
+  const [notificationDialogOpen, setNotificationDialogOpen] = useState(false)
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
+  const [deleteNotificationDialogOpen, setDeleteNotificationDialogOpen] = useState(false)
+  const [notificationToDelete, setNotificationToDelete] = useState<Notification | null>(null)
+  const [manageAttachmentsDialogOpen, setManageAttachmentsDialogOpen] = useState(false)
+  const [notificationForAttachments, setNotificationForAttachments] = useState<Notification | null>(null)
+
+  // Book and Chapter dialog states
+  const [createBookDialogOpen, setCreateBookDialogOpen] = useState(false)
+  const [createBookCourseId, setCreateBookCourseId] = useState<string>('')
+  const [createChapterDialogOpen, setCreateChapterDialogOpen] = useState(false)
+  const [createChapterCourseId, setCreateChapterCourseId] = useState<string>('')
+  const [createChapterBookId, setCreateChapterBookId] = useState<string>('')
 
   const handleSignOut = async (): Promise<void> => {
     await signOut()
   }
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number): void => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number): void => {
+    console.log('Tab changed to:', newValue)
     setTabValue(newValue)
   }
 
-  const handleAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
-    setExpanded(isExpanded ? panel : false)
-  }
-
-  const navigateToChapter = (chapter: Chapter): void => {
-    setNavigatingToChapter(chapter.id)
-    router.push(`/chapter/${chapter.id}`)
-  }
-
-  // Generate course description based on class and board
-  const getCourseDescription = (): string => {
-    if (!user?.current_class || !user?.board) {
-      return "No course information available"
+  // User management handlers
+  const handleInviteUser = async (): Promise<void> => {
+    setInviteLoading(true)
+    setInviteError(null)
+    try {
+      await inviteUser(inviteFormData)
+      setInviteDialogOpen(false)
+      setInviteFormData({ email: '', givenName: '', familyName: '', groupName: '' })
+      alert('User invited successfully!')
+    } catch (error) {
+      setInviteError(error instanceof Error ? error.message : 'Failed to invite user')
+    } finally {
+      setInviteLoading(false)
     }
+  }
+
+  const handleGetUserDetails = async (username: string): Promise<void> => {
+    console.log('Getting user details for:', username)
+    const userDetails = await getUserDetails(username)
+    console.log('User details received:', userDetails)
+    if (userDetails) {
+      setSelectedUserDetails(userDetails)
+      setEditFormData({
+        email: userDetails.email || '',
+        givenName: userDetails.givenName || '',
+        familyName: userDetails.familyName || ''
+      })
+      setUserDetailsOpen(true)
+      console.log('UserDetailsDialog should now be open')
+    }
+  }
+
+  const handleUpdateUserDetails = async (): Promise<void> => {
+    if (!selectedUserDetails) return
+    setUpdateLoading(true)
+    setUpdateError(null)
+    try {
+      await updateUserDetails(selectedUserDetails.username, editFormData)
+      setEditMode(false)
+      await loadUsers()
+      alert('User details updated successfully!')
+    } catch (error) {
+      setUpdateError(error instanceof Error ? error.message : 'Failed to update user')
+    } finally {
+      setUpdateLoading(false)
+    }
+  }
+
+  const handleResetPassword = async (user: User): Promise<void> => {
+    if (confirm(`Reset password for ${user.email || user.username}?`)) {
+      try {
+        await resetUserPassword(user.username)
+        alert('Password reset successfully!')
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Failed to reset password')
+      }
+    }
+  }
+
+  const handleSetTempPassword = async (password: string): Promise<void> => {
+    if (!selectedUserDetails) return
+    try {
+      await setTemporaryPassword(selectedUserDetails.username, password)
+      alert('Temporary password set successfully!')
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to set temporary password')
+    }
+  }
+
+  // Group management handlers
+  const handleAddUserToGroup = async (): Promise<void> => {
+    if (!selectedUserDetails || !selectedGroup) return
+    setGroupLoading(true)
+    try {
+      // First, remove user from all existing groups
+      if (selectedUserDetails.groups && selectedUserDetails.groups.length > 0) {
+        console.log('Removing user from existing groups:', selectedUserDetails.groups)
+        for (const existingGroup of selectedUserDetails.groups) {
+          try {
+            await removeUserFromGroup(selectedUserDetails.username, existingGroup)
+            console.log(`Removed user from group: ${existingGroup}`)
+          } catch (error) {
+            console.error(`Failed to remove user from group ${existingGroup}:`, error)
+          }
+        }
+      }
+      
+      // Then add user to the new group
+      await addUserToGroup(selectedUserDetails.username, selectedGroup)
+      await handleGetUserDetails(selectedUserDetails.username)
+      setGroupDialogOpen(false)
+      setSelectedGroup('')
+      alert(`User successfully moved to group ${selectedGroup}`)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to add user to group')
+    } finally {
+      setGroupLoading(false)
+    }
+  }
+
+  const handleRemoveUserFromGroup = async (groupName: string): Promise<void> => {
+    if (!selectedUserDetails) return
+    setGroupLoading(true)
+    try {
+      await removeUserFromGroup(selectedUserDetails.username, groupName)
+      await handleGetUserDetails(selectedUserDetails.username)
+      alert(`User successfully removed from group ${groupName}`)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to remove user from group')
+    } finally {
+      setGroupLoading(false)
+    }
+  }
+
+  // Groups tab handlers
+  const handleLoadGroupsData = async (): Promise<void> => {
+    setLoadingGroupsData(true)
+    setGroupsDataError(null)
+    try {
+      const groups = await loadGroupsData()
+      setGroupsData(groups)
+    } catch (error) {
+      setGroupsDataError(error instanceof Error ? error.message : 'Failed to load groups')
+    } finally {
+      setLoadingGroupsData(false)
+    }
+  }
+
+  // Notification handlers
+  const handleCreateNotification = (): void => {
+    setSelectedNotification(null)
+    setNotificationDialogOpen(true)
+  }
+
+  const handleEditNotification = (notification: Notification): void => {
+    setSelectedNotification(notification)
+    setNotificationDialogOpen(true)
+  }
+
+  const handleDeleteNotification = (notification: Notification): void => {
+    setNotificationToDelete(notification)
+    setDeleteNotificationDialogOpen(true)
+  }
+
+  const handleManageAttachments = (notification: Notification): void => {
+    setNotificationForAttachments(notification)
+    setManageAttachmentsDialogOpen(true)
+  }
+
+  const handleSaveNotification = async (data: any): Promise<void> => {
+    try {
+      if (selectedNotification) {
+        // Update existing notification (only content and priority)
+        await updateNotification(selectedNotification.notificationId, {
+          title: data.title,
+          content: data.content,
+          priority: data.priority
+        })
+      } else {
+        // Create new notification
+        console.log('Creating notification with data:', data)
+        await createNotification(data)
+      }
+      // Refresh notifications
+      await handleRefreshNotifications()
+      setNotificationDialogOpen(false)
+      setSelectedNotification(null)
+    } catch (error) {
+      console.error('Save notification error:', error)
+      throw error
+    }
+  }
+
+  const handleConfirmDeleteNotification = async (): Promise<void> => {
+    if (!notificationToDelete) return
     
-    return `Class ${user.current_class}${user.current_class === '12' ? 'th' : ''} - ${user.board}`
-  }
-
-  if (error) {
-    return (
-      <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
-        <Container maxWidth="lg">
-          <Typography variant="h4" component="h1" align="center" color="error">
-            {error}
-          </Typography>
-        </Container>
-      </Box>
-    )
-  }
-
-  const renderBookSkeleton = (): JSX.Element => {
-    return (
-      <Card sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, height: '100%', mb: 2 }}>
-        <Skeleton variant="rectangular" sx={{ width: { xs: '100%', sm: 140 }, height: { xs: 200, sm: 'auto' } }} />
-        <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, p: 2 }}>
-          <Skeleton variant="text" sx={{ fontSize: '2rem', width: '80%', mb: 1 }} />
-          <Skeleton variant="text" sx={{ fontSize: '1rem', width: '90%' }} />
-          <Skeleton variant="text" sx={{ fontSize: '1rem', width: '70%' }} />
-          <Box sx={{ mt: 2 }}>
-            <Skeleton variant="rounded" height={40} />
-          </Box>
-        </Box>
-      </Card>
-    );
-  };
-
-  const renderBookCard = (book: BookWithChapters): JSX.Element => {
-    return (
-      <Fade in={true} timeout={500}>
-        <Card 
-          sx={{ 
-            display: 'flex', 
-            flexDirection: { xs: 'column', sm: 'row' },
-            height: '100%',
-            mb: 2
-          }}
-        >
-          {book.cover_image_url ? (
-            <CardMedia
-              component="img"
-              sx={{ 
-                width: { xs: '100%', sm: 140 },
-                height: { xs: 200, sm: 'auto' },
-                objectFit: 'cover'
-              }}
-              image={book.cover_image_url}
-              alt={book.title}
-            />
-          ) : (
-            <Box 
-              sx={{ 
-                width: { xs: '100%', sm: 140 },
-                height: { xs: 200, sm: 'auto' },
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                bgcolor: 'primary.light',
-                color: 'primary.contrastText'
-              }}
-            >
-              <MenuBookIcon sx={{ fontSize: 60 }} />
-            </Box>
-          )}
-          <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-            <CardContent sx={{ flex: '1 0 auto' }}>
-              <Typography component="div" variant="h5">
-                {book.title}
-              </Typography>
-              <Typography variant="subtitle1" color="text.secondary" component="div">
-                {book.description}
-              </Typography>
-            </CardContent>
-            <Box sx={{ p: 2 }}>
-              <Accordion 
-                expanded={expanded === `book-${book.id}`} 
-                onChange={handleAccordionChange(`book-${book.id}`)}
-                sx={{ boxShadow: 'none', '&:before': { display: 'none' } }}
-              >
-                <AccordionSummary
-                  expandIcon={<ExpandMoreIcon />}
-                  aria-controls={`book-${book.id}-content`}
-                  id={`book-${book.id}-header`}
-                  sx={{ 
-                    backgroundColor: 'background.default',
-                    borderRadius: 1
-                  }}
-                >
-                  <Typography>
-                    {loadingChapters ? 
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <CircularProgress size={16} sx={{ mr: 1 }} /> Loading chapters...
-                      </Box> 
-                      : 
-                      `${book.chapters.length} Chapter${book.chapters.length !== 1 ? 's' : ''}`
-                    }
-                  </Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  {loadingChapters ? (
-                    <List disablePadding>
-                      {[1, 2, 3].map((i) => (
-                        <ListItem 
-                          key={i} 
-                          disablePadding
-                          sx={{ 
-                            borderBottom: '1px solid',
-                            borderColor: 'divider',
-                            py: 1
-                          }}
-                        >
-                          <Skeleton variant="rectangular" height={50} width="100%" />
-                        </ListItem>
-                      ))}
-                    </List>
-                  ) : (
-                    <List disablePadding>
-                      {book.chapters.map((chapter) => (
-                        <ListItem 
-                          key={chapter.id} 
-                          disablePadding
-                          sx={{ 
-                            borderBottom: '1px solid',
-                            borderColor: 'divider'
-                          }}
-                        >
-                          <ListItemButton 
-                            onClick={() => navigateToChapter(chapter)}
-                            disabled={navigatingToChapter === chapter.id}
-                          >
-                            <ListItemIcon>
-                              {navigatingToChapter === chapter.id ? (
-                                <CircularProgress size={20} />
-                              ) : (
-                                <AutoStoriesIcon />
-                              )}
-                            </ListItemIcon>
-                            <ListItemText 
-                              primary={chapter.title} 
-                              secondary={navigatingToChapter === chapter.id ? 'Loading chapter...' : `Chapter ${chapter.order_number}`}
-                            />
-                            {navigatingToChapter === chapter.id ? (
-                              <CircularProgress size={16} />
-                            ) : (
-                              <ChevronRightIcon />
-                            )}
-                          </ListItemButton>
-                        </ListItem>
-                      ))}
-                    </List>
-                  )}
-                </AccordionDetails>
-              </Accordion>
-            </Box>
-          </Box>
-        </Card>
-      </Fade>
-    )
-  }
-
-  const renderCourseContent = (): JSX.Element | JSX.Element[] => {
-    if (loadingCourses) {
-      return (
-        <Box sx={{ mt: 4 }}>
-          {[1, 2].map((i) => (
-            <Box key={i} sx={{ mb: 4 }}>
-              <Box sx={{ mb: 2 }}>
-                <Skeleton variant="text" sx={{ fontSize: '2rem', width: '60%' }} />
-                <Skeleton variant="text" sx={{ fontSize: '1rem', width: '30%' }} />
-              </Box>
-              <Grid container spacing={3}>
-                <Grid item xs={12}>
-                  {renderBookSkeleton()}
-                </Grid>
-                <Grid item xs={12}>
-                  {renderBookSkeleton()}
-                </Grid>
-              </Grid>
-            </Box>
-          ))}
-        </Box>
-      )
+    try {
+      await deleteNotification(notificationToDelete.notificationId)
+      // Close dialog immediately on success
+      setDeleteNotificationDialogOpen(false)
+      setNotificationToDelete(null)
+      // Refresh notifications after dialog is closed
+      await handleRefreshNotifications()
+    } catch (error) {
+      console.error('Delete notification error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete notification')
     }
-
-    if (loadingError) {
-      return (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {loadingError}
-        </Alert>
-      )
-    }
-
-    if (!coursesWithContent || coursesWithContent.length === 0) {
-      return (
-        <Typography variant="body1" sx={{ textAlign: 'center', py: 4 }}>
-          No courses found. Please contact support if you believe this is an error.
-        </Typography>
-      )
-    }
-
-    return coursesWithContent.map((course) => (
-        <Box key={course.id} sx={{ mb: 4 }}>
-          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="h5" component="h2">
-              {course.name}
-            </Typography>
-            <Chip 
-              label={`${course.progress}% Complete`} 
-              color={course.progress > 0 ? "primary" : "default"}
-              variant={course.progress > 0 ? "filled" : "outlined"}
-            />
-          </Box>
-          
-          {loadingBooks ? (
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                {renderBookSkeleton()}
-              </Grid>
-              <Grid item xs={12}>
-                {renderBookSkeleton()}
-              </Grid>
-            </Grid>
-          ) : course.books.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              No books available for this course yet.
-            </Typography>
-          ) : (
-            <Grid container spacing={3}>
-              {course.books.map((book) => (
-                <Grid item xs={12} key={book.id}>
-                  {renderBookCard(book)}
-                </Grid>
-              ))}
-            </Grid>
-          )}
-        </Box>
-    ))
   }
+
+  const handleDeleteAllAttachments = async (): Promise<void> => {
+    if (!notificationForAttachments) return
+    
+    try {
+      const updatedNotification = await removeAllAttachments(notificationForAttachments.notificationId)
+      // Update the notification to show no attachments
+      setNotificationForAttachments(updatedNotification)
+      await handleRefreshNotifications()
+      // Close dialog since there are no more attachments
+      setManageAttachmentsDialogOpen(false)
+    } catch (error) {
+      throw error
+    }
+  }
+
+  const handleDeleteSingleAttachment = async (attachmentId: string): Promise<void> => {
+    if (!notificationForAttachments) return
+    
+    try {
+      const updatedNotification = await removeAttachment(notificationForAttachments.notificationId, attachmentId)
+      
+      // Check if there are any attachments left
+      if (!updatedNotification.attachments || updatedNotification.attachments.length === 0) {
+        // Close dialog if no attachments remain
+        setManageAttachmentsDialogOpen(false)
+        setNotificationForAttachments(null)
+      } else {
+        // Update the notification in dialog with the response
+        setNotificationForAttachments(updatedNotification)
+      }
+      
+      // Also refresh the main list
+      await handleRefreshNotifications()
+    } catch (error) {
+      throw error
+    }
+  }
+
+  const handleGroupClick = async (group: any): Promise<void> => {
+    setSelectedGroupDetails(group)
+    setLoadingGroupUsers(true)
+    try {
+      const users = await loadGroupUsers(group.groupName)
+      setGroupUsersData(users)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to load group users')
+    } finally {
+      setLoadingGroupUsers(false)
+    }
+  }
+
+  // Load groups data when tab changes
+  React.useEffect(() => {
+    if (tabValue === 3 && isAdmin && groupsData.length === 0) {
+      handleLoadGroupsData()
+    }
+  }, [tabValue, isAdmin])
+  
+  // Set default notification course when courses are loaded
+  React.useEffect(() => {
+    // Courses effect triggered
+    if (coursesWithContent.length > 0 && !selectedNotificationCourseId) {
+      // For admin, set the first course; for non-admin, they only have one course
+      const courseId = coursesWithContent[0].id
+      // Setting default notification course
+      setSelectedNotificationCourseId(courseId)
+    }
+  }, [coursesWithContent, selectedNotificationCourseId])
+
+  // Book and Chapter management handlers
+  const handleOpenCreateBookDialog = (courseId: string): void => {
+    setCreateBookCourseId(courseId)
+    setCreateBookDialogOpen(true)
+  }
+
+  const handleOpenCreateChapterDialog = (courseId: string, bookId: string): void => {
+    setCreateChapterCourseId(courseId)
+    setCreateChapterBookId(bookId)
+    setCreateChapterDialogOpen(true)
+  }
+
+  const handleCreateBook = async (title: string): Promise<void> => {
+    try {
+      await createBook(createBookCourseId, title)
+      setCreateBookDialogOpen(false)
+      setCreateBookCourseId('')
+    } catch (error) {
+      throw error
+    }
+  }
+
+  const handleCreateChapter = async (title: string): Promise<void> => {
+    try {
+      await createChapter(createChapterCourseId, createChapterBookId, title)
+      setCreateChapterDialogOpen(false)
+      setCreateChapterCourseId('')
+      setCreateChapterBookId('')
+    } catch (error) {
+      throw error
+    }
+  }
+
+  // Effect to extract classes and boards from courses
+  React.useEffect(() => {
+    if (coursesWithContent && coursesWithContent.length > 0) {
+      const classes = new Set<string>()
+      const boards = new Set<string>()
+      coursesWithContent.forEach(course => {
+        // Assuming course.id or course.name is in the format "CLASS_BOARD"
+        // Let's assume it's course.id as it's used for notificationCourseId
+        const parts = course.id.split('_')
+        if (parts.length === 2) {
+          classes.add(parts[0])
+          boards.add(parts[1])
+        } else if (parts.length === 1 && parts[0] !== '') {
+          // Handle cases where there might be only a class or board, or malformed id.
+          // For now, we might assume it's a class if only one part.
+          // Or, decide on a convention. Let's assume if only one part, it's a class and no specific board.
+          // This logic might need refinement based on actual data variability.
+          classes.add(parts[0]);
+        }
+      })
+      setAvailableClasses(Array.from(classes))
+      setAvailableBoards(Array.from(boards))
+    }
+  }, [coursesWithContent])
 
   return (
     <>
       <Head>
-        <title>Dashboard | Economics E-Learning Portal</title>
+        <title>{isAdmin ? 'Admin Dashboard' : 'Dashboard'} | Economics E-Learning Portal</title>
         <meta 
           name="description" 
-          content="Access your economics e-learning dashboard. View courses, progress, and learning materials."
+          content={isAdmin 
+            ? "Admin dashboard for managing economics e-learning courses and content."
+            : "Access your economics e-learning dashboard. View courses, progress, and learning materials."
+          }
         />
       </Head>
       <Box sx={{ py: 6, backgroundColor: 'background.default' }}>
         <Container maxWidth="lg">
-          {sessionStatus === 'No valid session found. Redirecting...' && (
-            <Alert severity="warning" sx={{ mb: 3 }}>
-              {sessionStatus}
-            </Alert>
-          )}
           
+          {/* Header Section */}
           <Box sx={{ mb: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box>
-              <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
-                Hi {user?.first_name || 'Student'}, welcome back!
-              </Typography>
-              <Typography variant="h6" color="textSecondary">
-                Course opted: {getCourseDescription()}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, flexWrap: 'wrap' }}>
+                <Typography 
+                  variant="h3" 
+                  component="h1" 
+                  sx={{ 
+                    fontWeight: 'bold',
+                    fontSize: { xs: '1.75rem', sm: '2.5rem', md: '3rem' }
+                  }}
+                >
+                  {`Hi ${user?.attributes?.['given_name'] || user?.email || 'Student'}, welcome back!`}
+                </Typography>
+                {isAdmin && (
+                  <Chip
+                    icon={<AdminPanelSettingsIcon />}
+                    label="Admin"
+                    color="primary"
+                    sx={{
+                      backgroundColor: '#667eea',
+                      fontWeight: 700,
+                      fontSize: '0.875rem',
+                      '& .MuiChip-icon': {
+                        color: 'inherit'
+                      }
+                    }}
+                  />
+                )}
+              </Box>
+              {isAdmin && (
+                <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                  You have access to all courses and administrative features
+                </Typography>
+              )}
             </Box>
             <Button 
               variant="outlined" 
-              color="primary" 
               startIcon={<LogoutIcon />}
               onClick={handleSignOut}
-              sx={{ whiteSpace: 'nowrap' }}
+              sx={{ 
+                whiteSpace: 'nowrap',
+                borderColor: '#4c51bf',
+                color: '#4c51bf',
+                '&:hover': {
+                  borderColor: '#4c51bf',
+                  backgroundColor: 'rgba(76, 81, 191, 0.08)',
+                }
+              }}
             >
               Sign Out
             </Button>
           </Box>
 
-          <Paper sx={{ width: '100%', mb: 2, borderRadius: 2 }}>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-              <Tabs 
-                value={tabValue} 
-                onChange={handleTabChange} 
-                aria-label="dashboard tabs"
-                variant="fullWidth"
-              >
-                <Tab label="Course Content" {...a11yProps(0)} />
-                <Tab label="Notifications" {...a11yProps(1)} />
-              </Tabs>
-            </Box>
+          {/* Main Content */}
+          <Paper sx={{ width: '100%', mb: 2, borderRadius: 2, position: 'relative', zIndex: 1 }}>
+            <DashboardTabs 
+              isAdmin={isAdmin}
+              tabValue={tabValue}
+              onTabChange={handleTabChange}
+            />
             
             <TabPanel value={tabValue} index={0}>
-              {renderCourseContent()}
+              <CoursesTab
+                courses={coursesWithContent}
+                loading={loadingCourses}
+                error={loadingError}
+                isAdmin={isAdmin}
+                studentCount={studentCount}
+                availableClasses={availableClasses}
+                availableBoards={availableBoards}
+                onUpdateBookTitle={updateBookTitle}
+                onUpdateChapterTitle={updateChapterTitle}
+                onCreateBook={handleOpenCreateBookDialog}
+                onCreateChapter={handleOpenCreateChapterDialog}
+              />
             </TabPanel>
             
             <TabPanel value={tabValue} index={1}>
-              <Typography variant="body1">
-                Your notifications will appear here. This includes announcements, updates, and important information.
-              </Typography>
+              <NotificationsTab
+                notifications={notifications}
+                loading={loadingNotifications}
+                error={notificationsError}
+                pagination={notificationsPagination}
+                lastRefresh={lastRefresh}
+                refreshing={refreshing}
+                onRefresh={handleRefreshNotifications}
+                onLoadMore={handleLoadMore}
+                onAttachmentDownload={handleAttachmentDownload}
+                isAdmin={isAdmin}
+                courses={coursesWithContent}
+                selectedCourseId={notificationCourseId}
+                onCourseChange={setSelectedNotificationCourseId}
+                onCreateNotification={handleCreateNotification}
+                onEditNotification={handleEditNotification}
+                onDeleteNotification={handleDeleteNotification}
+                onManageAttachments={handleManageAttachments}
+              />
+            </TabPanel>
+            
+            <TabPanel value={tabValue} index={2}>
+              {isAdmin ? (
+                <UsersTab
+                  users={users}
+                  loading={loadingUsers}
+                  error={usersError}
+                  onRefresh={loadUsers}
+                  onInviteUser={() => setInviteDialogOpen(true)}
+                  onUserClick={(user) => handleGetUserDetails(user.username)}
+                  onUserEdit={(user) => {
+                    handleGetUserDetails(user.username)
+                    setEditMode(true)
+                  }}
+                  onUserResetPassword={handleResetPassword}
+                />
+              ) : null}
+            </TabPanel>
+            
+            <TabPanel value={tabValue} index={3}>
+              {isAdmin ? (
+                <GroupsTab
+                  groups={groupsData}
+                  loading={loadingGroupsData}
+                  error={groupsDataError}
+                  onRefresh={handleLoadGroupsData}
+                  onGroupClick={handleGroupClick}
+                  selectedGroup={selectedGroupDetails}
+                  groupUsers={groupUsersData}
+                  loadingGroupUsers={loadingGroupUsers}
+                  onGroupDialogClose={() => {
+                    setSelectedGroupDetails(null)
+                    setGroupUsersData([])
+                  }}
+                />
+              ) : null}
             </TabPanel>
           </Paper>
         </Container>
       </Box>
+
+      {/* Dialogs */}
+      <InviteUserDialog
+        open={inviteDialogOpen}
+        onClose={() => {
+          setInviteDialogOpen(false)
+          setInviteFormData({ email: '', givenName: '', familyName: '', groupName: '' })
+          setInviteError(null)
+        }}
+        formData={inviteFormData}
+        onFormChange={setInviteFormData}
+        onInvite={handleInviteUser}
+        loading={inviteLoading}
+        error={inviteError}
+        courses={coursesWithContent}
+      />
+
+      <UserDetailsDialog
+        open={userDetailsOpen}
+        user={selectedUserDetails}
+        editMode={editMode}
+        editFormData={editFormData}
+        updateError={updateError}
+        updateLoading={updateLoading}
+        onClose={() => {
+          setUserDetailsOpen(false)
+          setSelectedUserDetails(null)
+          setEditMode(false)
+          setEditFormData({ email: '', givenName: '', familyName: '' })
+          setUpdateError(null)
+        }}
+        onEditModeToggle={() => setEditMode(true)}
+        onEditFormChange={setEditFormData}
+        onUpdateUser={handleUpdateUserDetails}
+        onResetPassword={() => {
+          if (selectedUserDetails) {
+            handleResetPassword(selectedUserDetails)
+          }
+        }}
+        onSetTempPassword={() => {
+          // You would need to implement a temp password dialog here
+          const password = prompt('Enter temporary password:')
+          if (password) {
+            handleSetTempPassword(password)
+          }
+        }}
+        onManageGroups={() => {
+          loadAvailableGroups()
+          setGroupDialogOpen(true)
+        }}
+      />
+
+      <GroupManagementDialog
+        open={groupDialogOpen}
+        user={selectedUserDetails}
+        availableGroups={availableGroups || []}
+        selectedGroup={selectedGroup}
+        loading={groupLoading}
+        loadingGroups={loadingGroups}
+        error={groupError}
+        onClose={() => {
+          setGroupDialogOpen(false)
+          setSelectedGroup('')
+        }}
+        onGroupSelect={setSelectedGroup}
+        onAddToGroup={handleAddUserToGroup}
+        onRemoveFromGroup={handleRemoveUserFromGroup}
+      />
+
+      {/* Notification Dialogs */}
+      <NotificationDialog
+        open={notificationDialogOpen}
+        onClose={() => {
+          setNotificationDialogOpen(false)
+          setSelectedNotification(null)
+        }}
+        notification={selectedNotification}
+        courseId={notificationCourseId}
+        onSave={handleSaveNotification}
+        onUploadAttachments={getUploadUrls}
+      />
+
+      <DeleteNotificationDialog
+        open={deleteNotificationDialogOpen}
+        onClose={() => {
+          setDeleteNotificationDialogOpen(false)
+          setNotificationToDelete(null)
+        }}
+        notification={notificationToDelete}
+        onConfirm={handleConfirmDeleteNotification}
+      />
+
+      <ManageAttachmentsDialog
+        open={manageAttachmentsDialogOpen}
+        onClose={() => {
+          setManageAttachmentsDialogOpen(false)
+          setNotificationForAttachments(null)
+        }}
+        notification={notificationForAttachments}
+        onDeleteAll={handleDeleteAllAttachments}
+        onDeleteSingle={handleDeleteSingleAttachment}
+        onDownload={handleAttachmentDownload}
+      />
+
+      {/* Book and Chapter Management Dialogs */}
+      <CreateBookDialog
+        open={createBookDialogOpen}
+        onClose={() => {
+          setCreateBookDialogOpen(false)
+          setCreateBookCourseId('')
+        }}
+        courseId={createBookCourseId}
+        courseName={coursesWithContent.find(c => c.id === createBookCourseId)?.name || ''}
+        onCreateBook={handleCreateBook}
+        existingBooksCount={coursesWithContent.find(c => c.id === createBookCourseId)?.books.length || 0}
+      />
+
+      <CreateChapterDialog
+        open={createChapterDialogOpen}
+        onClose={() => {
+          setCreateChapterDialogOpen(false)
+          setCreateChapterCourseId('')
+          setCreateChapterBookId('')
+        }}
+        courseId={createChapterCourseId}
+        bookId={createChapterBookId}
+        bookTitle={
+          coursesWithContent
+            .find(c => c.id === createChapterCourseId)
+            ?.books.find(b => b.id === createChapterBookId)?.title || ''
+        }
+        onCreateChapter={handleCreateChapter}
+        existingChaptersCount={
+          coursesWithContent
+            .find(c => c.id === createChapterCourseId)
+            ?.books.find(b => b.id === createChapterBookId)?.chapters.length || 0
+        }
+      />
     </>
   )
 }
 
-export const getServerSideProps: GetServerSideProps<DashboardProps> = async (context) => {
-  try {
-    // Fast and secure authentication check using JWT verification
-    const { data: safeUser, error: authError } = await getSafeUser(context);
+const DashboardWithAuth: NextPageWithLayout = () => {
+  return (
+    <AuthGuard requireAuth={true}>
+      <Dashboard />
+    </AuthGuard>
+  )
+}
 
-    if (authError || !safeUser) {
-      return {
-        redirect: {
-          destination: '/login',
-          permanent: false,
-        },
-      };
-    }
+DashboardWithAuth.getLayout = (page) => <MainLayout isAuthenticated={true} theme="dashboard">{page}</MainLayout>
 
-    // Import supabase server client here only when we need to fetch additional data
-    const { createClient } = await import('@/utils/supabase/server');
-    const supabase = createClient(context);
-
-    // Fetch user profile from database
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', safeUser.id)
-      .single();
-
-    if (profileError) {
-      return {
-        props: {
-          user: null,
-          error: 'Failed to load user profile',
-        },
-      };
-    }
-
-    return {
-      props: {
-        user: profile,
-      },
-    };
-  } catch (error) {
-    console.error('Server-side error:', error);
-    return {
-      redirect: {
-        destination: '/login',
-        permanent: false,
-      }
-    };
-  }
-};
-
-Dashboard.getLayout = (page) => <MainLayout isAuthenticated={true}>{page}</MainLayout>
-
-export default Dashboard 
+export default DashboardWithAuth

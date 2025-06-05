@@ -13,7 +13,7 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Alert from '@mui/material/Alert'
 import { useRouter } from 'next/router'
-import { supabase } from '@/lib/supabaseClient'
+import { confirmResetPassword } from '@/lib/cognitoClient'
 import InputAdornment from '@mui/material/InputAdornment'
 import LockIcon from '@mui/icons-material/Lock'
 import Image from 'next/image'
@@ -28,15 +28,22 @@ const ResetPassword: NextPageWithLayout = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [validLink, setValidLink] = useState(true)
+  const [confirmationCode, setConfirmationCode] = useState('')
+  const [username, setUsername] = useState('')
 
   // Check if we have the necessary parameters for password reset
   useEffect(() => {
-    // The hash fragment is automatically managed by Supabase auth
-    // We just need to verify we're coming from a proper reset flow
-    const hash = window.location.hash
-    if (!hash || !hash.includes('type=recovery')) {
+    // For Cognito, we expect URL parameters for confirmation code and username
+    const urlParams = new URLSearchParams(window.location.search)
+    const code = urlParams.get('code') || urlParams.get('confirmation_code')
+    const email = urlParams.get('email') || urlParams.get('username')
+    
+    if (!code || !email) {
       setValidLink(false)
       setError('Invalid or expired password reset link. Please request a new one.')
+    } else {
+      setConfirmationCode(code)
+      setUsername(email)
     }
   }, [])
 
@@ -58,13 +65,11 @@ const ResetPassword: NextPageWithLayout = () => {
     setLoading(true)
 
     try {
-      // Update the user's password
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: password
-      })
+      // Confirm the password reset with Cognito
+      const { error: resetError } = await confirmResetPassword(username, confirmationCode, password)
 
-      if (updateError) {
-        throw updateError
+      if (resetError) {
+        throw resetError
       }
 
       setSuccess(true)

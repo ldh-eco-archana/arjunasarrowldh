@@ -1,327 +1,164 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
-import { Viewer, Worker, SpecialZoomLevel } from '@react-pdf-viewer/core';
+import { Worker, Viewer, SpecialZoomLevel } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
-import { styled } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
-import { LoadError } from '@react-pdf-viewer/core';
 
-// Import the styles
+// Import styles
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
-
-// Custom styles for the PDF viewer
-const ViewerContainer = styled('div')`
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  
-  /* Custom styles to hide unwanted UI elements */
-  .rpv-core__viewer {
-    --rpv-toolbar__height: 40px; /* Reduce toolbar height */
-  }
-  
-  /* Hide print, download buttons */
-  [data-testid="print"] {
-    display: none !important;
-  }
-  [data-testid="download"] {
-    display: none !important;
-  }
-  
-  /* Hide right click related buttons */
-  [data-testid="more-actions"] {
-    display: none !important;
-  }
-  
-  /* Mobile-specific styles */
-  @media (max-width: 768px) {
-    /* Increase hit areas for mobile buttons */
-    .rpv-core__minimal-button {
-      min-width: 44px !important;
-      min-height: 44px !important;
-      font-size: 16px !important;
-    }
-    
-    /* Make zoom buttons more prominent */
-    .rpv-core__minimal-button-icon {
-      transform: scale(1.3);
-    }
-    
-    /* Ensure toolbar text is readable */
-    .rpv-core__minimal-button-text,
-    .rpv-core__page-layer-current-page-input {
-      font-size: 1.1rem !important;
-    }
-    
-    /* Optimize page input for mobile */
-    .rpv-core__page-layer-current-page-input {
-      min-width: 60px !important;
-      padding: 8px !important;
-    }
-    
-    /* Better spacing for mobile toolbar */
-    .rpv-toolbar__item {
-      margin: 0 4px !important;
-    }
-    
-    /* Hide sidebar on mobile for more space */
-    .rpv-core__sidebar {
-      display: none !important;
-    }
-    
-    /* Optimize page rendering for mobile */
-    .rpv-core__page-layer {
-      margin-bottom: 16px !important;
-    }
-    
-    /* Better touch scrolling on mobile */
-    .rpv-core__inner-pages {
-      -webkit-overflow-scrolling: touch !important;
-      scroll-behavior: smooth !important;
-    }
-    
-    /* Optimize page container for mobile reading */
-    .rpv-core__page-layer-canvas {
-      max-width: 100% !important;
-      height: auto !important;
-    }
-    
-    /* Add some padding around pages on mobile */
-    .rpv-core__page-layer {
-      padding: 8px !important;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
-      border-radius: 4px !important;
-      background: white !important;
-    }
-  }
-`;
-
-// Overlay to prevent right-clicking and touch events for saving
-const SecurityOverlay = styled('div')`
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 50;
-  pointer-events: none; /* Allow interaction with PDF below */
-  user-select: none;
-  touch-action: none; /* Prevent default touch actions */
-  
-  /* When right-clicked or long-pressed, this becomes active */
-  &.active {
-    pointer-events: auto;
-    background-color: rgba(0, 0, 0, 0.05);
-  }
-`;
 
 interface PDFViewerProps {
   fileUrl: string;
   title?: string;
+  onContentReady?: () => void;
 }
 
-const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl }) => {
+const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, onContentReady }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rightClickActive, setRightClickActive] = useState(false);
   
-  // State to track if we're on a mobile device
-  const [isMobile, setIsMobile] = useState(false);
-
-  // Detect mobile device on component mount
-  useEffect(() => {
-    const checkMobile = (): void => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    
-    // Initial check
-    checkMobile();
-    
-    // Add resize listener
-    window.addEventListener('resize', checkMobile);
-    
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-    };
-  }, []);
-
-  // Set up event listeners to prevent right-click and keyboard shortcuts
-  useEffect(() => {
-    // Handle right clicks on desktop
-    const preventContextMenu = (e: MouseEvent): boolean => {
-      e.preventDefault();
-      setRightClickActive(true);
-      // Reset after a short delay
-      setTimeout(() => setRightClickActive(false), 300);
-      return false;
-    };
-    
-    // Handle long press on mobile (similar to right-click)
-    const preventTouchHold = (e: TouchEvent): void => {
-      if (e.touches.length === 1) {
-        setRightClickActive(true);
-        // Reset after touch end or a timeout
-        setTimeout(() => setRightClickActive(false), 300);
-      }
-    };
-
-    // Handle touch end
-    const handleTouchEnd = (): void => {
-      setRightClickActive(false);
-    };
-
-    // Prevent keyboard shortcuts
-    const preventKeyboardShortcuts = (e: KeyboardEvent): boolean | undefined => {
-      // Prevent ctrl+p, ctrl+s and other shortcuts
-      if (e.ctrlKey && (e.key === 'p' || e.key === 's' || e.key === 'P' || e.key === 'S')) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    // Add global event listeners
-    document.addEventListener('contextmenu', preventContextMenu);
-    document.addEventListener('keydown', preventKeyboardShortcuts);
-    document.addEventListener('touchstart', preventTouchHold, { passive: true });
-    document.addEventListener('touchend', handleTouchEnd);
-
-    // Clean up event listeners when component unmounts
-    return () => {
-      document.removeEventListener('contextmenu', preventContextMenu);
-      document.removeEventListener('keydown', preventKeyboardShortcuts);
-      document.removeEventListener('touchstart', preventTouchHold);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, []);
-
-  // Create the plugin instance with customized toolbar
+  // Create the default layout plugin instance
   const defaultLayoutPluginInstance = defaultLayoutPlugin({
-    sidebarTabs: (defaultTabs) => [
-      // Only show thumbnails in sidebar on desktop, hide on mobile
-      defaultTabs[0],
-    ],
+    sidebarTabs: (_defaultTabs) => [], // Remove sidebar for cleaner look
     renderToolbar: (Toolbar) => (
       <Toolbar>
         {(slots) => {
-          const {
-            CurrentPageInput,
-            GoToNextPage,
-            GoToPreviousPage,
-            NumberOfPages,
-            Zoom,
-            ZoomIn,
-            ZoomOut,
+          const { 
+            ZoomIn, ZoomOut, NumberOfPages, CurrentPageInput, 
+            GoToNextPage, GoToPreviousPage, EnterFullScreen 
           } = slots;
-          
           return (
-            <div className="rpv-toolbar">
-              <div className="rpv-toolbar__left">
-                <div className="rpv-toolbar__item">
-                  <GoToPreviousPage />
-                </div>
-                <div className="rpv-toolbar__item">
-                  <CurrentPageInput /> / <NumberOfPages />
-                </div>
-                <div className="rpv-toolbar__item">
-                  <GoToNextPage />
-                </div>
+            <>
+              <div style={{ padding: '0px 2px', display: 'flex', alignItems: 'center' }}>
+                <GoToPreviousPage />
+                <CurrentPageInput /> / <NumberOfPages />
+                <GoToNextPage />
               </div>
-              <div className="rpv-toolbar__center">
-                {/* Add mobile-friendly zoom info */}
-                {isMobile && (
-                  <div className="rpv-toolbar__item">
-                    <Typography variant="caption" sx={{ color: 'text.secondary', px: 1 }}>
-                      Pinch to zoom
-                    </Typography>
-                  </div>
-                )}
+              <div style={{ padding: '0px 2px', marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                <ZoomOut />
+                <ZoomIn />
+                <EnterFullScreen />
               </div>
-              <div className="rpv-toolbar__right">
-                <div className="rpv-toolbar__item">
-                  <ZoomOut />
-                </div>
-                <div className="rpv-toolbar__item">
-                  <Zoom />
-                </div>
-                <div className="rpv-toolbar__item">
-                  <ZoomIn />
-                </div>
-              </div>
-            </div>
+            </>
           );
         }}
       </Toolbar>
     ),
   });
 
+  useEffect(() => {
+    // Reset state when fileUrl changes
+    setError(null);
+    setLoading(true);
+  }, [fileUrl]);
+
   const handleDocumentLoad = (): void => {
     setLoading(false);
+    if (onContentReady) {
+      onContentReady();
+    }
   };
 
-  const handleError = (error: Error | LoadError): void => {
-    console.error('Error loading PDF:', error);
-    setError('Failed to load the PDF document. Please try again later.');
-    setLoading(false);
-  };
+
+  // Disable right-click and keyboard shortcuts
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent): boolean => {
+      e.preventDefault();
+      return false;
+    };
+
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      // Disable Ctrl+P (print) and Ctrl+S (save)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 's')) {
+        e.preventDefault();
+      }
+    };
+
+    // Override window.print
+    const originalPrint = window.print;
+    window.print = () => {
+      // Do nothing - printing is disabled
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.print = originalPrint;
+    };
+  }, []);
 
   return (
-    <ViewerContainer>
+    <Box
+      sx={{
+        height: '100%',
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: '#f5f5f5',
+        position: 'relative',
+        overflow: 'hidden',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect: 'none',
+        msUserSelect: 'none',
+        '& .rpv-core__viewer': {
+          height: '100%',
+          '--scale-factor': '1',
+        },
+        '& .rpv-core__page-layer': {
+          userSelect: 'none !important',
+        },
+      }}
+    >
+      {loading && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
+          <CircularProgress size={60} sx={{ color: '#4c51bf' }} />
+          <Typography variant="h6" color="text.secondary">
+            Loading PDF document...
+          </Typography>
+        </Box>
+      )}
+
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ m: 2 }}>
           {error}
         </Alert>
       )}
-      
-      {loading && (
-        <Box 
-          sx={{ 
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'rgba(255,255,255,0.8)',
-            zIndex: 999,
-            gap: 2
-          }}
-        >
-          <CircularProgress />
-          <Typography variant="body1">Loading document...</Typography>
-        </Box>
+
+      {!error && fileUrl && (
+        <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
+          <Box sx={{ height: '100%', width: '100%' }}>
+            <Viewer
+              fileUrl={fileUrl}
+              defaultScale={SpecialZoomLevel.ActualSize}
+              plugins={[defaultLayoutPluginInstance]}
+              onDocumentLoad={handleDocumentLoad}
+            />
+          </Box>
+        </Worker>
       )}
-      
-      {/* Security overlay that becomes active on right click or long press */}
-      <SecurityOverlay className={rightClickActive ? 'active' : ''} />
-      
-      <Worker workerUrl={`https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`}>
-        <Viewer
-          fileUrl={fileUrl}
-          plugins={[defaultLayoutPluginInstance]}
-          defaultScale={isMobile ? 1.5 : SpecialZoomLevel.PageFit}
-          onDocumentLoad={handleDocumentLoad}
-          withCredentials={true}
-          renderError={(error: LoadError) => {
-            handleError(error);
-            return (
-              <Alert severity="error" sx={{ m: 2 }}>
-                Failed to load the PDF document. Please try again later.
-              </Alert>
-            );
-          }}
-        />
-      </Worker>
-    </ViewerContainer>
+    </Box>
   );
 };
 
-export default PDFViewer; 
+export default PDFViewer;

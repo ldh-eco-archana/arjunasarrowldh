@@ -19,9 +19,11 @@ import LockIcon from '@mui/icons-material/Lock'
 import Image from 'next/image'
 import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
-import { createClient } from '@/utils/supabase/client'
+import { signIn } from '@/lib/cognitoClient'
+import { useRouter } from 'next/router'
 
 const LoginContent: React.FC = () => {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,19 +35,27 @@ const LoginContent: React.FC = () => {
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      })
+      const { data, error } = await signIn(email, password)
 
       if (error) {
         throw error
       }
 
+      if (data?.session && typeof data.session === 'object' && 'nextStep' in data.session) {
+        const session = data.session as any
+        
+        // Check if user needs to change password (first-time login)
+        if (session.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+          // Store email temporarily for the password change flow
+          sessionStorage.setItem('tempEmail', email)
+          router.push('/change-password?firstTime=true')
+          return
+        }
+      }
+      
       if (data?.user) {
-        // AuthGuard will handle the redirection and show the dashboard loading
-        // No need to set redirecting state here
+        // Refresh auth context to pick up new session
+        window.location.href = '/dashboard'
       }
     } catch (error: unknown) {
       const err = error as Error

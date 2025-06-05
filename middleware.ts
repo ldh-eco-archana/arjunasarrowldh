@@ -1,61 +1,82 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { updateSession } from '@/utils/supabase/middleware'
+import { NextRequest, NextResponse } from 'next/server'
+
+// Import helper functions from utils
+import { hasValidCognitoSession } from './src/utils/cognito/session'
 
 // Define routes that require authentication
-const protectedRoutes = ['/dashboard', '/chapter', '/profile', '/settings']
+const protectedRoutes = ['/dashboard', '/chapter', '/profile', '/change-password']
 
-// Define routes that should redirect authenticated users (like login)
-const guestOnlyRoutes = ['/login', '/signup', '/forgot-password']
+// Define routes that should redirect authenticated users
+const guestOnlyRoutes = ['/login', '/signup', '/forgot-password', '/reset-password']
 
-export async function middleware(request: NextRequest) {
+// Fast cookie-based session check - no async operations
+function hasAuthCookies(request: NextRequest): boolean {
+  const cookieHeader = request.headers.get('cookie')
+  if (!cookieHeader) return false
+  
+  // Check for Cognito-specific cookies that indicate an active session
+  // These patterns match AWS Amplify's cookie naming conventions
+  const cognitoCookiePatterns = [
+    'CognitoIdentityServiceProvider',
+    'amplify-signin-with-hostedUI',
+    'LastAuthUser'
+  ]
+  
+  return cognitoCookiePatterns.some(pattern => cookieHeader.includes(pattern))
+}
+
+// Middleware function that runs on every request
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // Update session (this is fast and doesn't verify JWT)
-  const response = await updateSession(request)
+  // Skip middleware for API routes and static files
+  if (
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/_next/') ||
+    pathname.includes('.')
+  ) {
+    return NextResponse.next()
+  }
   
   // Check if the route needs protection
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
   const isGuestOnlyRoute = guestOnlyRoutes.some(route => pathname.startsWith(route))
   
-  // Quick session check without expensive JWT verification
-  // Access cookies via headers like the supabase middleware does
-  const getCookie = (name: string): string | undefined => {
-    return request.headers.get('cookie')?.split('; ')
-      .find(row => row.startsWith(`${name}=`))
-      ?.split('=')[1]
+  // Fast synchronous cookie check
+  const hasAuth = hasAuthCookies(request)
+  
+  // Check for valid session
+  if (!hasValidCognitoSession(request)) {
+    // Handle unauthenticated users if needed
+    // For example, redirect to login page
+    // return NextResponse.redirect(new URL('/auth/login', request.url))
   }
   
-  // Check for various supabase auth cookie names
-  const authCookie = getCookie('sb-access-token') || 
-                     getCookie('sb-refresh-token') ||
-                     getCookie('supabase-auth-token') ||
-                     getCookie('sb-localhost-auth-token')
-  
-  const hasSession = !!authCookie
-  
-  // Redirect logic for protected routes
-  if (isProtectedRoute && !hasSession) {
+  // Only redirect for protected routes without auth cookies
+  // Let client-side handle auth validation for better UX
+  if (isProtectedRoute && !hasAuth) {
     const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('from', pathname)
+    loginUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(loginUrl)
   }
   
-  // For guest-only routes, we let client-side handle redirects for better UX
-  // This avoids the slow server-side check while still providing basic protection
+  // For guest routes with auth cookies, let client handle redirect
+  // This prevents flashing of the login page
   
-  return response
+  return NextResponse.next()
 }
 
+// Optional: Configure which paths should trigger this middleware
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match all request paths except:
+     * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (public directory)
+     * - favicon.ico, robots.txt, sitemap.xml
+     * - images, fonts, and other static assets
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|images/|fonts/).*)',
   ],
 } 

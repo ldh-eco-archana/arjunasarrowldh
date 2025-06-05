@@ -16,7 +16,7 @@ export const useIsMobile = (): MobileDetection => {
   });
 
   useEffect(() => {
-    const detectDevice = () => {
+    const detectDevice = (): void => {
       const screenWidth = window.innerWidth;
       const userAgent = navigator.userAgent.toLowerCase();
       

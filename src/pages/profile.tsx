@@ -1,5 +1,4 @@
-import React, { useState } from 'react'
-import { GetServerSideProps } from 'next'
+import React, { useState, useEffect } from 'react'
 import { NextPageWithLayout } from '@/interfaces/layout'
 import { MainLayout } from '@/components/layout'
 import Head from 'next/head'
@@ -8,77 +7,104 @@ import Container from '@mui/material/Container'
 import Typography from '@mui/material/Typography'
 import Paper from '@mui/material/Paper'
 import Grid from '@mui/material/Grid'
-import { User } from '@/types/database.types'
 import Divider from '@mui/material/Divider'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import SchoolIcon from '@mui/icons-material/School'
-import LocationCityIcon from '@mui/icons-material/LocationCity'
-import PhoneIcon from '@mui/icons-material/Phone'
 import EmailIcon from '@mui/icons-material/Email'
-import { getSafeUser } from '@/utils/supabase/server'
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
+import ClassIcon from '@mui/icons-material/Class'
+import BookIcon from '@mui/icons-material/Book'
+import { useAuth } from '@/contexts/AuthContext'
+import CircularProgress from '@mui/material/CircularProgress'
+import { useRouter } from 'next/router'
+import Chip from '@mui/material/Chip'
 
-interface ProfileProps {
-  userProfile: User | null;
-  error?: string;
+interface ParsedGroupInfo {
+  year: string | null
+  class: string | null
+  board: string | null
+  isAdmin: boolean
 }
 
-const Profile: NextPageWithLayout<ProfileProps> = ({ userProfile, error }) => {
-  const [daysRemaining] = useState<number | null>(() => {
-    // Calculate days remaining if we have a subscription end date
-    if (userProfile?.subscription_end_date) {
-      const endDate = new Date(userProfile.subscription_end_date)
-      const today = new Date()
-      const timeDiff = endDate.getTime() - today.getTime()
-      const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24))
-      return daysDiff
-    }
-    return null
+const Profile: NextPageWithLayout = () => {
+  const _router = useRouter()
+  const { user: currentUser, isLoading } = useAuth()
+  const [error, _setError] = useState<string | null>(null)
+  const [groupInfo, setGroupInfo] = useState<ParsedGroupInfo>({
+    year: null,
+    class: null,
+    board: null,
+    isAdmin: false
   })
 
-  const formatDate = (dateString: string): string => {
-    const options: Intl.DateTimeFormatOptions = { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+  // Function to parse group information
+  const parseGroupInfo = (groups: string[]): ParsedGroupInfo => {
+    const info: ParsedGroupInfo = {
+      year: null,
+      class: null,
+      board: null,
+      isAdmin: false
     }
-    return new Date(dateString).toLocaleDateString(undefined, options)
-  }
 
-  // Determine background color for the subscription status banner
-  const getSubscriptionBannerStyles = (): { bgcolor: string; color: string } => {
-    if (daysRemaining !== null) {
-      if (daysRemaining <= 7) {
-        // Critical - red background with white text
-        return {
-          bgcolor: 'error.dark',
-          color: 'white'
-        }
-      } else if (daysRemaining <= 30) {
-        // Warning - amber background with dark text
-        return {
-          bgcolor: 'warning.dark',
-          color: 'white'
-        }
-      } else {
-        // Good - green/blue background with white text
-        return {
-          bgcolor: 'primary.dark',
-          color: 'white'
-        }
+    for (const group of groups) {
+      if (group.toLowerCase() === 'admin') {
+        info.isAdmin = true
+        break
       }
-    } else {
-      // Default - gray background
-      return {
-        bgcolor: 'grey.700',
-        color: 'white'
+      
+      // Parse format: YYYY_Class_Board (e.g., 2025_XI_CBSE, 2025_XII_ICSE)
+      const groupPattern = /^(\d{4})_([XI]+)_([A-Z]+)$/
+      const match = group.match(groupPattern)
+      
+      if (match) {
+        info.year = match[1]
+        info.class = match[2]
+        info.board = match[3]
+        break
       }
     }
+    
+    return info
   }
 
-  const bannerStyles = getSubscriptionBannerStyles();
+  useEffect(() => {
+    if (currentUser) {
+      // Parse group information from Cognito user
+      const userGroups = currentUser.groups || []
+      const parsedGroupInfo = parseGroupInfo(userGroups)
+      setGroupInfo(parsedGroupInfo)
+    }
+  }, [currentUser])
+
+
+  // Get user's full name from Cognito attributes
+  const getFullName = (): string => {
+    const givenName = currentUser?.attributes?.['given_name'] || ''
+    const familyName = currentUser?.attributes?.['family_name'] || ''
+    return `${givenName} ${familyName}`.trim() || 'User'
+  }
+
+  // Get user's email from Cognito attributes
+  const getEmail = (): string => {
+    return (currentUser?.email || currentUser?.attributes?.['email'] || 'N/A') as string
+  }
+
+  if (isLoading) {
+    return (
+      <Box sx={{ py: 12, backgroundColor: 'background.default' }}>
+        <Container maxWidth="lg">
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
+            <CircularProgress size={60} sx={{ mb: 2, color: '#4c51bf' }} />
+            <Typography variant="h6">Loading profile...</Typography>
+          </Box>
+        </Container>
+      </Box>
+    )
+  }
 
   if (error) {
     return (
@@ -107,123 +133,369 @@ const Profile: NextPageWithLayout<ProfileProps> = ({ userProfile, error }) => {
             My Profile
           </Typography>
           
-          {/* Subscription Status Banner */}
-          <Paper 
-            elevation={3} 
-            sx={{ 
-              p: 3, 
-              mb: 4, 
-              borderRadius: 2,
-              backgroundColor: bannerStyles.bgcolor,
-              color: bannerStyles.color
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Box>
-                <Typography variant="h5" sx={{ fontWeight: 'medium', mb: 1 }}>
-                  Subscription Status
-                </Typography>
-                <Typography variant="body1">
-                  Your subscription {daysRemaining && daysRemaining > 0 ? 'will expire' : 'has expired'} on{' '}
-                  <strong>{userProfile?.subscription_end_date ? formatDate(userProfile.subscription_end_date) : 'N/A'}</strong>
+          {/* User Role Banner */}
+          {groupInfo.isAdmin && (
+            <Paper 
+              elevation={3} 
+              sx={{ 
+                p: 3, 
+                mb: 4, 
+                borderRadius: 4,
+                background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)',
+                color: 'white',
+                boxShadow: '0 8px 32px rgba(76, 81, 191, 0.3)',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2,
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backdropFilter: 'blur(10px)',
+                  }}
+                >
+                  <AdminPanelSettingsIcon sx={{ fontSize: 24, color: 'white' }} />
+                </Box>
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    Administrator
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                    You have administrative access to the platform
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+          )}
+
+          {/* Batch Information Banner - Only for non-admin users */}
+          {!groupInfo.isAdmin && (groupInfo.year || groupInfo.class || groupInfo.board) && (
+            <Paper 
+              elevation={3} 
+              sx={{ 
+                p: 3, 
+                mb: 4, 
+                borderRadius: 4,
+                background: 'linear-gradient(135deg, rgba(76, 81, 191, 0.05) 0%, rgba(102, 126, 234, 0.05) 100%)',
+                border: '1px solid rgba(76, 81, 191, 0.1)',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <CalendarTodayIcon sx={{ color: '#4c51bf', fontSize: 24 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: '#4c51bf' }}>
+                  Academic Information
                 </Typography>
               </Box>
-              <Box sx={{ 
-                textAlign: 'center', 
-                bgcolor: 'rgba(255, 255, 255, 0.2)', 
-                borderRadius: 2, 
-                p: 1.5, 
-                minWidth: '100px' 
-              }}>
-                <Typography variant="h3" sx={{ fontWeight: 'bold' }}>
-                  {daysRemaining !== null ? daysRemaining : 'N/A'}
-                </Typography>
-                <Typography variant="body2">
-                  days remaining
-                </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                {groupInfo.year && (
+                  <Chip 
+                    label={`Batch ${groupInfo.year}`} 
+                    sx={{ 
+                      backgroundColor: 'rgba(76, 81, 191, 0.1)', 
+                      color: '#4c51bf',
+                      fontWeight: 600 
+                    }} 
+                  />
+                )}
+                {groupInfo.class && (
+                  <Chip 
+                    label={`Class ${groupInfo.class}`} 
+                    sx={{ 
+                      backgroundColor: 'rgba(76, 81, 191, 0.1)', 
+                      color: '#4c51bf',
+                      fontWeight: 600 
+                    }} 
+                  />
+                )}
+                {groupInfo.board && (
+                  <Chip 
+                    label={groupInfo.board} 
+                    sx={{ 
+                      backgroundColor: 'rgba(76, 81, 191, 0.1)', 
+                      color: '#4c51bf',
+                      fontWeight: 600 
+                    }} 
+                  />
+                )}
               </Box>
-            </Box>
-          </Paper>
+            </Paper>
+          )}
 
           {/* Profile Information */}
-          <Paper elevation={3} sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            <Box sx={{ bgcolor: 'primary.main', py: 3, px: 4 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <AccountCircleIcon sx={{ fontSize: 50, color: 'white' }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'white' }}>
-                  {userProfile?.first_name} {userProfile?.last_name}
-                </Typography>
+          <Paper elevation={3} sx={{ 
+            borderRadius: 4,
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%)',
+            backdropFilter: 'blur(10px)',
+            overflow: 'hidden',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '4px',
+              background: 'linear-gradient(90deg, #4c51bf 0%, #667eea 100%)',
+            }
+          }}>
+            <Box sx={{ 
+              background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)', 
+              py: 3, 
+              px: 4,
+              position: 'relative',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: -50,
+                right: -50,
+                width: 100,
+                height: 100,
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.1)',
+              },
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative', zIndex: 1 }}>
+                <Box
+                  sx={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 3,
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backdropFilter: 'blur(10px)',
+                  }}
+                >
+                  <AccountCircleIcon sx={{ fontSize: 32, color: 'white' }} />
+                </Box>
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 0.5 }}>
+                    {getFullName()}
+                  </Typography>
+                  <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
+                    {groupInfo.isAdmin ? 'Platform Administrator' : 'Student'}
+                  </Typography>
+                </Box>
               </Box>
             </Box>
             
-            <Box sx={{ p: 3 }}>
+            <Box sx={{ p: 4 }}>
               <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
                   <List>
                     <ListItem>
-                      <EmailIcon sx={{ mr: 2, color: 'primary.main' }} />
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 2,
+                          background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          mr: 2,
+                        }}
+                      >
+                        <EmailIcon sx={{ fontSize: 20, color: 'white' }} />
+                      </Box>
                       <ListItemText 
-                        primary="Email" 
-                        secondary={userProfile?.email || 'N/A'} 
+                        primary={
+                          <Typography sx={{ fontWeight: 600, color: 'rgba(0, 0, 0, 0.87)' }}>
+                            Email Address
+                          </Typography>
+                        }
+                        secondary={
+                          <Typography sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 500 }}>
+                            {getEmail()}
+                          </Typography>
+                        }
                       />
                     </ListItem>
-                    <Divider component="li" />
+                    <Divider component="li" sx={{ my: 1 }} />
                     
-                    <ListItem>
-                      <PhoneIcon sx={{ mr: 2, color: 'primary.main' }} />
-                      <ListItemText 
-                        primary="Mobile" 
-                        secondary={userProfile?.mobile || 'N/A'} 
-                      />
-                    </ListItem>
-                    <Divider component="li" />
+                    {groupInfo.isAdmin && (
+                      <>
+                        <ListItem>
+                          <Box
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 2,
+                              background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              mr: 2,
+                            }}
+                          >
+                            <AdminPanelSettingsIcon sx={{ fontSize: 20, color: 'white' }} />
+                          </Box>
+                          <ListItemText 
+                            primary={
+                              <Typography sx={{ fontWeight: 600, color: 'rgba(0, 0, 0, 0.87)' }}>
+                                Role
+                              </Typography>
+                            }
+                            secondary={
+                              <Typography sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 500 }}>
+                                Administrator
+                              </Typography>
+                            }
+                          />
+                        </ListItem>
+                        <Divider component="li" sx={{ my: 1 }} />
+                      </>
+                    )}
                     
-                    <ListItem>
-                      <LocationCityIcon sx={{ mr: 2, color: 'primary.main' }} />
-                      <ListItemText 
-                        primary="City" 
-                        secondary={userProfile?.city || 'N/A'} 
-                      />
-                    </ListItem>
                   </List>
                 </Grid>
                 
                 <Grid item xs={12} md={6}>
                   <List>
-                    <ListItem>
-                      <SchoolIcon sx={{ mr: 2, color: 'primary.main' }} />
-                      <ListItemText 
-                        primary="School Name" 
-                        secondary={userProfile?.school_name || 'N/A'} 
-                      />
-                    </ListItem>
-                    <Divider component="li" />
+                    {!groupInfo.isAdmin && (
+                      <>
+                        {groupInfo.year && (
+                          <>
+                            <ListItem>
+                              <Box
+                                sx={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: 2,
+                                  background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  mr: 2,
+                                }}
+                              >
+                                <CalendarTodayIcon sx={{ fontSize: 20, color: 'white' }} />
+                              </Box>
+                              <ListItemText 
+                                primary={
+                                  <Typography sx={{ fontWeight: 600, color: 'rgba(0, 0, 0, 0.87)' }}>
+                                    Batch Year
+                                  </Typography>
+                                }
+                                secondary={
+                                  <Typography sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 500 }}>
+                                    {groupInfo.year}
+                                  </Typography>
+                                }
+                              />
+                            </ListItem>
+                            <Divider component="li" sx={{ my: 1 }} />
+                          </>
+                        )}
+                        
+                        {groupInfo.class && (
+                          <>
+                            <ListItem>
+                              <Box
+                                sx={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: 2,
+                                  background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  mr: 2,
+                                }}
+                              >
+                                <ClassIcon sx={{ fontSize: 20, color: 'white' }} />
+                              </Box>
+                              <ListItemText 
+                                primary={
+                                  <Typography sx={{ fontWeight: 600, color: 'rgba(0, 0, 0, 0.87)' }}>
+                                    Class
+                                  </Typography>
+                                }
+                                secondary={
+                                  <Typography sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 500 }}>
+                                    {groupInfo.class}
+                                  </Typography>
+                                }
+                              />
+                            </ListItem>
+                            <Divider component="li" sx={{ my: 1 }} />
+                          </>
+                        )}
+                        
+                        {groupInfo.board && (
+                          <ListItem>
+                            <Box
+                              sx={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 2,
+                                background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                mr: 2,
+                              }}
+                            >
+                              <BookIcon sx={{ fontSize: 20, color: 'white' }} />
+                            </Box>
+                            <ListItemText 
+                              primary={
+                                <Typography sx={{ fontWeight: 600, color: 'rgba(0, 0, 0, 0.87)' }}>
+                                  Board
+                                </Typography>
+                              }
+                              secondary={
+                                <Typography sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 500 }}>
+                                  {groupInfo.board}
+                                </Typography>
+                              }
+                            />
+                          </ListItem>
+                        )}
+                      </>
+                    )}
                     
-                    <ListItem>
-                      <SchoolIcon sx={{ mr: 2, color: 'primary.main' }} />
-                      <ListItemText 
-                        primary="Class" 
-                        secondary={userProfile?.current_class ? `Class ${userProfile.current_class}` : 'N/A'} 
-                      />
-                    </ListItem>
-                    <Divider component="li" />
-                    
-                    <ListItem>
-                      <SchoolIcon sx={{ mr: 2, color: 'primary.main' }} />
-                      <ListItemText 
-                        primary="Board" 
-                        secondary={userProfile?.board || 'N/A'} 
-                      />
-                    </ListItem>
+                    {groupInfo.isAdmin && (
+                      <ListItem>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 2,
+                            background: 'linear-gradient(135deg, #4c51bf 0%, #667eea 100%)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mr: 2,
+                          }}
+                        >
+                          <SchoolIcon sx={{ fontSize: 20, color: 'white' }} />
+                        </Box>
+                        <ListItemText 
+                          primary={
+                            <Typography sx={{ fontWeight: 600, color: 'rgba(0, 0, 0, 0.87)' }}>
+                              Access Level
+                            </Typography>
+                          }
+                          secondary={
+                            <Typography sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 500 }}>
+                              Full Platform Access
+                            </Typography>
+                          }
+                        />
+                      </ListItem>
+                    )}
                   </List>
                 </Grid>
               </Grid>
-              
-              <Box sx={{ mt: 3 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Account created on {userProfile?.created_at ? formatDate(userProfile.created_at) : 'N/A'}
-                </Typography>
-              </Box>
             </Box>
           </Paper>
         </Container>
@@ -232,56 +504,7 @@ const Profile: NextPageWithLayout<ProfileProps> = ({ userProfile, error }) => {
   )
 }
 
-export const getServerSideProps: GetServerSideProps<ProfileProps> = async (context) => {
-  try {
-    // Fast authentication check using JWT verification
-    const { data: safeUser, error: authError } = await getSafeUser(context);
 
-    if (authError || !safeUser) {
-      return {
-        redirect: {
-          destination: '/login',
-          permanent: false,
-        },
-      };
-    }
-
-    // Import supabase server client here only when we need to fetch additional data
-    const { createClient } = await import('@/utils/supabase/server');
-    const supabase = createClient(context);
-
-    // Fetch user profile from database
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', safeUser.id)
-      .single();
-
-    if (profileError) {
-      return {
-        props: {
-          userProfile: null,
-          error: 'Failed to load user profile',
-        },
-      };
-    }
-
-    return {
-      props: {
-        userProfile: profile,
-      },
-    };
-  } catch (error) {
-    console.error('Server-side error:', error);
-    return {
-      redirect: {
-        destination: '/login',
-        permanent: false,
-      }
-    };
-  }
-};
-
-Profile.getLayout = (page) => <MainLayout>{page}</MainLayout>
+Profile.getLayout = (page) => <MainLayout isAuthenticated={true} theme="dashboard">{page}</MainLayout>
 
 export default Profile 

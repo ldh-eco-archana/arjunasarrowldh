@@ -5,8 +5,8 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import { styled } from '@mui/material/styles'
 import { Content } from '@/types/database.types'
-import { useIsMobile } from '@/hooks/useIsMobile'
 import dynamic from 'next/dynamic'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 // Lazy load PDF viewers only when needed
 const PDFViewer = dynamic(() => import('@/components/content/PDFViewer'), {
@@ -33,7 +33,7 @@ const MobilePDFViewer = dynamic(() => import('@/components/content/MobilePDFView
       display: 'flex', 
       justifyContent: 'center', 
       alignItems: 'center',
-      height: '70vh',
+      height: '85vh',
       flexDirection: 'column',
       gap: 2
     }}>
@@ -42,6 +42,7 @@ const MobilePDFViewer = dynamic(() => import('@/components/content/MobilePDFView
     </Box>
   )
 })
+
 
 // Container for PDF content
 const PdfContainer = styled('div')`
@@ -83,7 +84,7 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
   const [error, setError] = useState('')
   const [pdfUrl, setPdfUrl] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
-  const { isMobile } = useIsMobile()
+  const { isMobile, isTablet } = useIsMobile()
 
   const handleError = useCallback((errorMsg: string): void => {
     setError(errorMsg)
@@ -150,7 +151,7 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
     }
 
     if (onProgress) onProgress()
-  }, [content.content_type, content.id, fetchVideoUrl, onProgress, onReady])
+  }, [content.content_type, content.id, content.file_url, fetchVideoUrl, onProgress, onReady, handleError])
 
   const handleContentLoaded = useCallback(() => {
     setLoading(false);
@@ -182,36 +183,16 @@ const ContentPlayer: React.FC<ContentPlayerProps> = ({
 
   // Render PDF content with mobile optimization
   if (content.content_type === 'pdf' && pdfUrl) {
+    // Use MobilePDFViewer for mobile and tablet devices
+    const PDFComponent = isMobile || isTablet ? MobilePDFViewer : PDFViewer;
+    
     return (
       <PdfContainer>
-        {isMobile ? (
-          <MobilePDFViewer 
-            fileUrl={pdfUrl} 
-            title={content.title || "PDF Document"}
-          />
-        ) : (
-          <>
-            {/* Desktop tip */}
-            <Box 
-              sx={{ 
-                display: { xs: 'none', md: 'block' },
-                backgroundColor: 'info.light',
-                color: 'info.contrastText',
-                p: 1,
-                mb: 1,
-                borderRadius: 1,
-                fontSize: '0.875rem',
-                textAlign: 'center'
-              }}
-            >
-              💡 Use mouse wheel to zoom • Click and drag to pan • Use toolbar controls
-            </Box>
-            <PDFViewer 
-              fileUrl={pdfUrl} 
-              title={content.title || "PDF Document"}
-            />
-          </>
-        )}
+        <PDFComponent 
+          fileUrl={pdfUrl} 
+          title={content.title || "PDF Document"}
+          onContentReady={handleContentLoaded}
+        />
       </PdfContainer>
     )
   }

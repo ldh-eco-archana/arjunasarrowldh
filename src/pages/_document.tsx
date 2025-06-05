@@ -32,7 +32,7 @@ class MyDocument extends Document<DocumentProps> {
           <meta content="#127C71" name="theme-color" />
           <meta content="#127C71" name="msapplication-navbutton-color" />
           <meta content="#127C71" name="apple-mobile-web-app-status-bar-style" />
-          <meta content="yes" name="apple-mobile-web-app-capable" />
+          <meta content="yes" name="mobile-web-app-capable" />
 
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="true" />

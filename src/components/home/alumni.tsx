@@ -10,7 +10,6 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Avatar from '@mui/material/Avatar'
 import { motion } from 'framer-motion'
-import InfoIcon from '@mui/icons-material/Info'
 import { batchData } from './alumni.data'
 
 interface TabPanelProps {
@@ -117,65 +116,12 @@ const StudentCard: FC<{ name: string; delay: number }> = ({ name, delay }): JSX.
   )
 }
 
-const ComingSoonMessage: FC = (): JSX.Element => {
-  const theme = useTheme()
-  
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        py: 6,
-        px: 3,
-        textAlign: 'center',
-      }}
-    >
-      <InfoIcon 
-        sx={{ 
-          fontSize: { xs: 40, md: 60 }, 
-          color: theme.palette.primary.main,
-          mb: 2 
-        }} 
-      />
-      <Typography
-        variant="h5"
-        sx={{
-          fontWeight: 600,
-          color: theme.palette.primary.main,
-          mb: 2,
-        }}
-      >
-        Coming Soon
-      </Typography>
-      <Typography
-        variant="body1"
-        sx={{
-          color: alpha(theme.palette.text.primary, 0.7),
-          maxWidth: 500,
-          mx: 'auto',
-        }}
-      >
-        We&apos;re currently updating our archive of alumni from this batch. 
-        Check back soon to explore more of our distinguished graduates!
-      </Typography>
-    </Box>
-  )
-}
-
 const HomeSuccessStories: FC = () => {
   const theme = useTheme()
   const [tabValue, setTabValue] = useState(0)
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number): void => {
     setTabValue(newValue)
-  }
-
-  // Determine which batches should show actual content vs "coming soon"
-  const isComingSoon = (year: string): boolean => {
-    const batchYear = parseInt(year.split('-')[0])
-    return batchYear <= 2018
   }
 
   return (
@@ -277,9 +223,6 @@ const HomeSuccessStories: FC = () => {
 
           {batchData.map((batch, index) => (
             <TabPanel key={batch.id} value={tabValue} index={index}>
-              {isComingSoon(batch.year) ? (
-                <ComingSoonMessage />
-              ) : (
                 <Grid container spacing={{ xs: 2, md: 3 }}>
                   {batch.students.map((student, idx) => (
                     <Grid item xs={6} sm={4} md={3} key={idx}>
@@ -287,7 +230,6 @@ const HomeSuccessStories: FC = () => {
                     </Grid>
                   ))}
                 </Grid>
-              )}
             </TabPanel>
           ))}
         </Box>

@@ -67,6 +67,7 @@ export interface Chapter {
   order_number: number;
   created_at: string;
   updated_at: string;
+  status?: 'draft' | 'published';
 }
 
 /**

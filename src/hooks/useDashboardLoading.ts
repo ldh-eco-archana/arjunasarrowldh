@@ -78,19 +78,19 @@ export const useDashboardLoading = (
 
   // Handle route changes
   useEffect(() => {
-    const handleRouteChangeStart = (url: string) => {
+    const handleRouteChangeStart = (url: string): void => {
       if (url === '/dashboard') {
         startLoading()
       }
     }
 
-    const handleRouteChangeComplete = (url: string) => {
+    const handleRouteChangeComplete = (url: string): void => {
       if (url === '/dashboard') {
         stopLoading()
       }
     }
 
-    const handleRouteChangeError = () => {
+    const handleRouteChangeError = (): void => {
       setIsLoading(false)
       setShowDashboardLoading(false)
     }

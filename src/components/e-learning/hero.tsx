@@ -5,7 +5,6 @@ import Container from '@mui/material/Container'
 import Typography from '@mui/material/Typography'
 import { StyledButton } from '@/components/styled-button'
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter } from 'next/router'
 import LoadingWithQuotes from '@/components/loading/loading-with-quotes'
 

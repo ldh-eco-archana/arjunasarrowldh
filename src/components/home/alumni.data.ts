@@ -34,21 +34,36 @@ export const batchData: Array<BatchData> = [
   {
     id: 7,
     year: '2018-19',
-    students: ['Vivek', 'Tanya', 'Kunal', 'Simran', 'Raj', 'Anya', 'Vihaan']
+    students: ['Suman', 'Kritika', 'Jyoti', 'Ranjeet', 'Mitul']
   },
   {
     id: 8,
     year: '2017-18',
-    students: ['Anil', 'Sanya', 'Karthik', 'Meghna', 'Rishabh', 'Leela', 'Manish']
+    students: ['Shruti', 'Chestha', 'Gitesh', 'Manisha', 'Arushi']
   },
   {
     id: 9,
     year: '2016-17',
-    students: ['Prateek', 'Shreya', 'Ajay', 'Nandini', 'Dhruv', 'Sonali', 'Vinay']
+    students: ['Varinderjit', 'Mehak', 'Suraj']
   },
   {
     id: 10,
     year: '2015-16',
-    students: ['Shikha', 'Alok', 'Anita', 'Vikas', 'Jaya', 'Prakash', 'Komal']
-  }
+    students: ['Sujal', 'Raghav', 'Tajinder', 'Rishabh', 'Garima']
+  },
+  {
+    id: 11,
+    year: '2014-15',
+    students: ['Rajveer', 'Tamanna', 'Davneet', 'Kritika']
+  },
+  {
+    id: 12,
+    year: '2013-14',
+    students: ['Mitesh', 'Gurleen', 'Jaspreet']
+  },
+  {
+    id: 13,
+    year: '2012-13',
+    students: ['Anshul', 'Karishma', 'Gurneet']
+  }  
 ] 

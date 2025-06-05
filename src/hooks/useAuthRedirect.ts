@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import { createClient } from '@/utils/supabase/client'
-import type { User } from '@supabase/supabase-js'
+import { getCurrentUser, type User } from '@/lib/cognitoClient'
 
 interface UseAuthRedirectOptions {
   redirectTo?: string
@@ -42,25 +41,19 @@ export function useAuthRedirect(options: UseAuthRedirectOptions = {}): UseAuthRe
     }
 
     let mounted = true
-    const supabase = createClient()
 
-    const checkAuth = async () => {
+    const checkAuth = async (): Promise<void> => {
       try {
-        // Fast session check - doesn't hit the server
-        const { data: { session }, error } = await supabase.auth.getSession()
+        // Check current user with Cognito
+        const currentUser = await getCurrentUser()
         
         if (!mounted) return
 
-        if (error) {
-          console.error('Auth check error:', error)
-          setUser(null)
-        } else {
-          setUser(session?.user || null)
-        }
+        setUser(currentUser)
 
         // Handle redirection logic
         if (redirectTo) {
-          const isAuthenticated = !!(session?.user)
+          const isAuthenticated = !!currentUser
           const shouldRedirect = 
             (redirectIf === 'authenticated' && isAuthenticated) ||
             (redirectIf === 'unauthenticated' && !isAuthenticated)
@@ -75,7 +68,7 @@ export function useAuthRedirect(options: UseAuthRedirectOptions = {}): UseAuthRe
         setLoading(false)
         setChecking(false)
       } catch (error) {
-        console.error('Unexpected auth error:', error)
+        console.error('Auth check error:', error)
         if (mounted) {
           setUser(null)
           setLoading(false)
@@ -87,30 +80,17 @@ export function useAuthRedirect(options: UseAuthRedirectOptions = {}): UseAuthRe
     // Initial check
     checkAuth()
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return
-
-        setUser(session?.user || null)
-        
-        // Handle redirection on auth state change
-        if (redirectTo) {
-          const isAuthenticated = !!(session?.user)
-          const shouldRedirect = 
-            (redirectIf === 'authenticated' && isAuthenticated) ||
-            (redirectIf === 'unauthenticated' && !isAuthenticated)
-
-          if (shouldRedirect) {
-            router.replace(redirectTo)
-          }
-        }
+    // For Cognito, we'll need to implement auth state listening differently
+    // This is a simplified version - you might want to add Hub listeners for Amplify
+    const interval = setInterval(() => {
+      if (mounted) {
+        checkAuth()
       }
-    )
+    }, 5000) // Check every 5 seconds for auth state changes
 
     return () => {
       mounted = false
-      subscription.unsubscribe()
+      clearInterval(interval)
     }
   }, [enabled, redirectTo, redirectIf, router])
 
